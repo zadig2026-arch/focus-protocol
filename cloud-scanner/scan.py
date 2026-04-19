@@ -234,10 +234,30 @@ Regrouper les tâches partageant un contexte commun (outil, interlocuteur, espac
 - Format JSON strict quand demandé
 """
 
+# --------------------------------------------------------------------- NOTES
+def fetch_notes() -> str:
+    """Fetch user-written notes.md from the Gist. Returns empty string if absent or empty."""
+    try:
+        r = requests.get(
+            f'https://api.github.com/gists/{GIST_ID}',
+            headers=_gh_headers(), timeout=20,
+        )
+        r.raise_for_status()
+        note = r.json().get('files', {}).get('notes.md') or {}
+        return (note.get('content') or '').strip()
+    except Exception as e:
+        print(f'Warn: fetch notes failed: {e}', file=sys.stderr)
+        return ''
+
+
 # --------------------------------------------------------------------- CLAUDE
-def call_claude(sources: dict) -> dict:
+def call_claude(sources: dict, notes: str = '') -> dict:
     context = json.dumps(sources, ensure_ascii=False, indent=2)
-    user_msg = f"""Voici le contexte de scan du {datetime.now(timezone.utc).isoformat()} :
+    notes_block = (
+        f'\n\nNOTES DE CONTEXTE (écrites par l\'utilisateur, prends-les en compte pour prioriser) :\n"""\n{notes}\n"""\n'
+        if notes else ''
+    )
+    user_msg = f"""Voici le contexte de scan du {datetime.now(timezone.utc).isoformat()} :{notes_block}
 
 ```json
 {context}
@@ -321,13 +341,25 @@ def main() -> None:
 
     sources = {'gmail': gmail, 'calendar': cal, 'github': gh}
 
+    print('→ Fetching user notes…')
+    notes = fetch_notes()
+    print(f'   {len(notes)} chars' if notes else '   (empty)')
+
     print('→ Calling Claude…')
-    result = call_claude(sources)
+    result = call_claude(sources, notes=notes)
+
+    scanned = ['gmail', 'calendar', 'github']
+    skipped = ['git-local', 'claude-code-sessions']
+    if notes:
+        scanned.append('user-notes')
+    else:
+        skipped.append('user-notes')
 
     payload = {
         'generatedAt': datetime.now(timezone.utc).isoformat(),
-        'scannedSources': ['gmail', 'calendar', 'github'],
-        'skippedSources': ['git-local', 'claude-code-sessions', 'notes'],
+        'scannedSources': scanned,
+        'skippedSources': skipped,
+        'notesUsed': bool(notes),
         'suggestions': result.get('suggestions', []),
     }
 
