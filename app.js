@@ -1192,6 +1192,96 @@ async function initInbox() {
 }
 
 /* =====================================================
+   Notes screen (écrites par l'utilisateur, lues par le scanner cloud)
+   ===================================================== */
+const NOTES_KEY = 'fp.notes';
+
+function readLocalNotes() {
+  try { return localStorage.getItem(NOTES_KEY) || ''; } catch { return ''; }
+}
+function writeLocalNotes(text) {
+  try { localStorage.setItem(NOTES_KEY, text); } catch {}
+}
+
+function setNotesStatus(msg) {
+  const el = document.querySelector('[data-notes-status]');
+  if (el) el.textContent = msg;
+}
+
+async function fetchNotesFromGist() {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return null;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.files?.['notes.md']?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function pushNotesToGist(text) {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) {
+    setNotesStatus('⚠ Gist ID ou token manquant dans Réglages');
+    return false;
+  }
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ files: { 'notes.md': { content: text || ' ' } } }),
+    });
+    if (!res.ok) {
+      setNotesStatus(`⚠ Sync échouée (${res.status})`);
+      return false;
+    }
+    setNotesStatus(`Synchronisé · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
+    return true;
+  } catch (e) {
+    setNotesStatus('⚠ Réseau indisponible — note gardée en local');
+    return false;
+  }
+}
+
+async function initNotes() {
+  const ta = document.querySelector('[data-notes-input]');
+  if (!ta) return;
+
+  // 1. Load from localStorage (instantané)
+  ta.value = readLocalNotes();
+  setNotesStatus(ta.value ? 'Brouillon local' : '—');
+
+  // 2. Try to pull latest from Gist (si config OK)
+  const remote = await fetchNotesFromGist();
+  if (remote !== null && remote.trim() !== ta.value.trim() && document.activeElement !== ta) {
+    ta.value = remote;
+    writeLocalNotes(remote);
+    setNotesStatus('Synchronisé depuis Gist');
+  }
+
+  // 3. Save local immédiatement, push Gist au blur
+  ta.addEventListener('input', () => {
+    writeLocalNotes(ta.value);
+    setNotesStatus('Brouillon local…');
+  });
+  ta.addEventListener('blur', () => {
+    pushNotesToGist(ta.value);
+  });
+}
+
+/* =====================================================
    Boot
    ===================================================== */
 function boot() {
@@ -1213,6 +1303,7 @@ function boot() {
   renderSettings();
   bindSettings();
   initInbox();
+  initNotes();
   bindAICheckHandlers();
   bindZeigarnikEvaluator();
   renderDebugViewer();
