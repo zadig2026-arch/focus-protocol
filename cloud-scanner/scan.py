@@ -282,7 +282,9 @@ Réponds UNIQUEMENT en JSON strict :
         },
         timeout=90,
     )
-    r.raise_for_status()
+    if not r.ok:
+        print(f'Anthropic {r.status_code} body: {r.text[:800]}', file=sys.stderr)
+        r.raise_for_status()
     text = r.json()['content'][0]['text']
     m = re.search(r'\{[\s\S]*\}', text)
     if not m:
