@@ -1,0 +1,13 @@
+suggestions.json
+.DS_Store
+node_modules/
+.env
+.env.local
+
+# Local Netlify folder
+.netlify
+
+# Cloud scanner secrets (never commit)
+cloud-scanner/client_secret.json
+cloud-scanner/.venv/
+cloud-scanner/__pycache__/

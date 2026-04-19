@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#f2f2f7" />
+  <title>Focus Protocol</title>
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- iOS PWA (ajouter à l'écran d'accueil) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Focus" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+
+    <!-- ===================== AUJOURD'HUI ===================== -->
+    <section class="screen active" data-tab="today">
+      <header class="screen-header">
+        <div class="date-line" data-today-date>—</div>
+        <div class="phase-line">
+          <span class="phase-day" data-day-counter>Jour 1 / 84</span>
+          <span class="phase-name">Phase 1 — Fondation</span>
+        </div>
+      </header>
+
+      <article class="card zeigarnik-recall" data-zeigarnik-recall hidden>
+        <div class="card-label">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+          Hier, tu as noté
+        </div>
+        <p class="zeigarnik-text">—</p>
+        <button class="chip-ghost">Commencer par ça →</button>
+      </article>
+
+      <!-- Inbox IA — suggestions du scanner matinal -->
+      <section class="inbox-section" data-inbox-section hidden>
+        <header class="inbox-header">
+          <div class="inbox-heading">
+            <h3 class="inbox-title">Suggestions du matin</h3>
+            <span class="inbox-meta" data-inbox-meta>—</span>
+          </div>
+          <button class="inbox-rescan" data-inbox-rescan title="Comment rescanner">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
+          </button>
+        </header>
+        <div class="inbox-list" data-inbox-list></div>
+        <div class="inbox-empty" data-inbox-empty hidden>
+          <p>Toutes les suggestions ont été traitées ou ignorées.</p>
+          <button class="inbox-restore" data-inbox-restore>Réafficher les suggestions</button>
+        </div>
+      </section>
+
+      <div class="priority-group">
+        <details class="priority-card" data-priority="0">
+          <summary class="priority-summary">
+            <span class="badge badge-empty">TYPE</span>
+            <span class="priority-title-display is-placeholder">Nouvelle tâche</span>
+            <span class="priority-rank">1</span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="priority-body">
+            <input type="text" class="priority-title" placeholder="Titre de la tâche…" />
+            <div class="smallest-row">
+              <label class="smallest-label">Plus petite action</label>
+              <div class="smallest-input-wrap">
+                <input type="text" class="smallest-input" placeholder="Premier geste déclenchable…" />
+                <button class="btn-icon" title="Vérifier que c'est assez petit" data-ai-check>
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </button>
+                <button class="btn-icon" title="Décomposer avec Claude" data-ai-decompose>
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="priority-actions">
+              <button class="btn-primary-soft" data-timer-start>
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Timer 120 s
+              </button>
+              <label class="check-done">
+                <input type="checkbox" />
+                <span class="check-box"></span>
+                <span>Fait</span>
+              </label>
+            </div>
+          </div>
+        </details>
+
+        <details class="priority-card" data-priority="1">
+          <summary class="priority-summary">
+            <span class="badge badge-empty">TYPE</span>
+            <span class="priority-title-display is-placeholder">Nouvelle tâche</span>
+            <span class="priority-rank">2</span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="priority-body">
+            <input type="text" class="priority-title" placeholder="Titre de la tâche…" />
+            <div class="smallest-row">
+              <label class="smallest-label">Plus petite action</label>
+              <div class="smallest-input-wrap">
+                <input type="text" class="smallest-input" placeholder="Premier geste déclenchable…" />
+                <button class="btn-icon" data-ai-check><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                <button class="btn-icon" data-ai-decompose><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></button>
+              </div>
+            </div>
+            <div class="priority-actions">
+              <button class="btn-primary-soft" data-timer-start>
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Timer 120 s
+              </button>
+              <label class="check-done">
+                <input type="checkbox" />
+                <span class="check-box"></span>
+                <span>Fait</span>
+              </label>
+            </div>
+          </div>
+        </details>
+
+        <details class="priority-card" data-priority="2">
+          <summary class="priority-summary">
+            <span class="badge badge-empty">TYPE</span>
+            <span class="priority-title-display is-placeholder">Nouvelle tâche</span>
+            <span class="priority-rank">3</span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="priority-body">
+            <input type="text" class="priority-title" placeholder="Titre de la tâche…" />
+            <div class="smallest-row">
+              <label class="smallest-label">Plus petite action</label>
+              <div class="smallest-input-wrap">
+                <input type="text" class="smallest-input" placeholder="Premier geste déclenchable…" />
+                <button class="btn-icon" data-ai-check><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                <button class="btn-icon" data-ai-decompose><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></button>
+              </div>
+            </div>
+            <div class="priority-actions">
+              <button class="btn-primary-soft" data-timer-start>
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Timer 120 s
+              </button>
+              <label class="check-done">
+                <input type="checkbox" />
+                <span class="check-box"></span>
+                <span>Fait</span>
+              </label>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="switch-counter">
+        <div class="switch-info">
+          <span class="switch-label">Task switches aujourd'hui</span>
+          <span class="switch-value" data-switch-count>0</span>
+        </div>
+        <button class="btn-ghost-sm" data-switch-add>+1 switch</button>
+      </div>
+
+      <button class="btn-close-day" data-close-day>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0-6 6c0 7 6 12 6 12s6-5 6-12a6 6 0 0 0-6-6Z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        Clôturer ma journée
+      </button>
+    </section>
+
+    <!-- ===================== BLOCS (placeholder S2+) ===================== -->
+    <section class="screen" data-tab="blocs">
+      <header class="screen-header">
+        <div class="date-line">Blocs de la semaine</div>
+        <div class="phase-line"><span class="phase-day">À venir</span></div>
+      </header>
+      <div class="placeholder-block">Planification des time-blocks — à venir en S2c.</div>
+    </section>
+
+    <!-- ===================== PROGRAMME ===================== -->
+    <section class="screen" data-tab="program">
+      <header class="screen-header">
+        <div class="date-line">Programme 12 semaines</div>
+        <div class="phase-line">
+          <span class="phase-day" data-day-counter>Jour 1 / 84</span>
+          <span class="phase-name" data-program-percent>1 %</span>
+        </div>
+      </header>
+
+      <div class="progress-global">
+        <div class="progress-bar"><div class="progress-fill" style="width: 1%" data-program-fill></div></div>
+      </div>
+
+      <article class="phase-card phase-active">
+        <header class="phase-card-header">
+          <div>
+            <div class="phase-card-number">Phase 1</div>
+            <h3 class="phase-card-title">Fondation</h3>
+          </div>
+          <span class="phase-card-status">En cours</span>
+        </header>
+        <div class="phase-card-range">Semaines 1 – 4 · Jours 1 – 28</div>
+        <div class="phase-card-bar"><div class="phase-card-fill" style="width: 3%"></div></div>
+        <div class="habit-chip-row">
+          <span class="habit-chip habit-chip-active">Loi des 3 tâches</span>
+        </div>
+        <div class="srhi-block">
+          <div class="srhi-header">
+            <span class="srhi-label">Automaticité (SRHI)</span>
+            <span class="srhi-score">—<span class="srhi-max"> / 7</span></span>
+          </div>
+          <svg class="srhi-chart" viewBox="0 0 300 60" preserveAspectRatio="none">
+            <line x1="0" y1="8" x2="300" y2="8" stroke-dasharray="4 4" stroke-width="1"/>
+          </svg>
+          <div class="srhi-target">Cible : ≥6 pendant 10 jours consécutifs</div>
+        </div>
+      </article>
+
+      <article class="phase-card phase-locked">
+        <header class="phase-card-header">
+          <div>
+            <div class="phase-card-number">Phase 2</div>
+            <h3 class="phase-card-title">Exécution</h3>
+          </div>
+          <span class="phase-card-status locked">Verrouillée</span>
+        </header>
+        <div class="phase-card-range">Semaines 5 – 8</div>
+        <div class="habit-chip-row">
+          <span class="habit-chip">Loi des 3 tâches</span>
+          <span class="habit-chip habit-chip-new">+ Zeigarnik</span>
+          <span class="habit-chip habit-chip-new">+ Batching</span>
+        </div>
+      </article>
+
+      <article class="phase-card phase-locked">
+        <header class="phase-card-header">
+          <div>
+            <div class="phase-card-number">Phase 3</div>
+            <h3 class="phase-card-title">Ancrage profond</h3>
+          </div>
+          <span class="phase-card-status locked">Verrouillée</span>
+        </header>
+        <div class="phase-card-range">Semaines 9 – 12</div>
+        <div class="habit-chip-row">
+          <span class="habit-chip">Loi des 3 tâches</span>
+          <span class="habit-chip">Zeigarnik</span>
+          <span class="habit-chip habit-chip-new">+ Rituel d'ancrage</span>
+          <span class="habit-chip habit-chip-new">+ Quarantaine</span>
+        </div>
+      </article>
+
+      <article class="phase-card phase-locked">
+        <header class="phase-card-header">
+          <div>
+            <div class="phase-card-number">Phase 4</div>
+            <h3 class="phase-card-title">Consolidation</h3>
+          </div>
+          <span class="phase-card-status locked">Verrouillée</span>
+        </header>
+        <div class="phase-card-range">Jours 90 – 150 · maintien</div>
+        <div class="habit-chip-row">
+          <span class="habit-chip habit-chip-maint">SRHI hebdomadaire</span>
+        </div>
+      </article>
+
+      <button class="btn-next-phase" disabled>
+        Avancer à la phase suivante
+        <span class="btn-next-hint">disponible quand SRHI ≥ 6 × 10 jours</span>
+      </button>
+    </section>
+
+    <!-- ===================== RITUEL ===================== -->
+    <section class="screen" data-tab="ritual">
+      <header class="screen-header">
+        <div class="date-line">Rituel d'ancrage</div>
+        <div class="phase-line">
+          <span class="phase-name">Disponible en Phase 3</span>
+        </div>
+      </header>
+
+      <div class="ritual-setup">
+        <label class="ritual-label">Ancrage (geste ou objet)</label>
+        <input type="text" class="ritual-input" placeholder="Ex : mettre ma casquette bleue…" data-ritual-anchor />
+        <label class="ritual-label">État mental cible</label>
+        <input type="text" class="ritual-input" placeholder="Ex : deep work 90 min…" data-ritual-mental />
+      </div>
+
+      <button class="btn-ritual-use" data-ritual-use>
+        <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        <span>Je viens de l'utiliser</span>
+        <span class="btn-ritual-count" data-ritual-count>+0</span>
+      </button>
+
+      <div class="streak-block">
+        <div class="streak-number">
+          <span class="streak-value" data-ritual-streak>0</span>
+          <span class="streak-label">jours consécutifs</span>
+        </div>
+        <div class="streak-meta">Record personnel : <strong data-ritual-record>0 jours</strong></div>
+      </div>
+
+      <div class="calendar-block">
+        <div class="calendar-header">
+          <span data-ritual-month>—</span>
+          <span class="calendar-legend">
+            <span class="dot dot-0"></span>
+            <span class="dot dot-1"></span>
+            <span class="dot dot-2"></span>
+            <span class="dot dot-3"></span>
+          </span>
+        </div>
+        <div class="calendar-grid" data-ritual-grid></div>
+      </div>
+    </section>
+
+    <!-- ===================== STATS (placeholder S2+) ===================== -->
+    <section class="screen" data-tab="stats">
+      <header class="screen-header">
+        <div class="date-line">Statistiques</div>
+        <div class="phase-line"><span class="phase-day">À venir</span></div>
+      </header>
+      <div class="placeholder-block">Graphiques SRHI, switches, complétion — à venir en S2d.</div>
+    </section>
+
+    <!-- ===================== RÉGLAGES ===================== -->
+    <section class="screen" data-tab="settings">
+      <header class="screen-header">
+        <div class="date-line">Réglages</div>
+        <div class="phase-line"><span class="phase-day">Configuration</span></div>
+      </header>
+
+      <div class="settings-group">
+        <div class="settings-label">Intelligence artificielle</div>
+        <div class="settings-list">
+          <label class="settings-row">
+            <span class="settings-row-label">Clé API Anthropic</span>
+            <input type="password" class="settings-row-input" placeholder="sk-ant-…" data-setting-apikey autocomplete="off" />
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Style du brief matinal</span>
+            <select class="settings-row-input" data-setting-brief-style>
+              <option value="entrepreneur">Entrepreneur</option>
+              <option value="stoicien">Stoïcien</option>
+              <option value="surf">Surf / nature</option>
+            </select>
+          </label>
+        </div>
+        <div class="settings-hint">Les fonctions intelligentes (évaluation Zeigarnik, détecteur plus petite action, diagnostic hebdo) ne s'activent qu'avec une clé valide. Sinon l'app reste 100 % fonctionnelle en mode local.</div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Sync iPhone via GitHub Gist</div>
+        <div class="settings-list">
+          <label class="settings-row">
+            <span class="settings-row-label">Gist ID</span>
+            <input type="text" class="settings-row-input" placeholder="ex: a1b2c3d4e5" data-setting-gistid autocomplete="off" />
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Token GitHub</span>
+            <input type="password" class="settings-row-input" placeholder="ghp_… (scope: gist)" data-setting-githubtoken autocomplete="off" />
+          </label>
+          <button class="settings-row settings-row-btn" data-copy-scanner-config>
+            <span class="settings-row-label">Copier la config pour le scanner</span>
+            <span class="settings-row-chevron">⎘</span>
+          </button>
+        </div>
+        <div class="settings-hint">Permet au scanner Claude Code du Mac de pousser les suggestions vers un Gist privé que ton iPhone peut lire. Sans ça, les suggestions ne sont visibles que sur Mac. Comment créer un token : github.com → Settings → Developer settings → Personal access tokens → scope « gist » uniquement.</div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Horaires</div>
+        <div class="settings-list">
+          <label class="settings-row">
+            <span class="settings-row-label">Heure du brief matinal</span>
+            <input type="time" class="settings-row-input" data-setting-morning-time />
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Heure de clôture</span>
+            <input type="time" class="settings-row-input" data-setting-evening-time />
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Données</div>
+        <div class="settings-list">
+          <button class="settings-row settings-row-btn" data-export>
+            <span class="settings-row-label">Exporter un backup (JSON)</span>
+            <span class="settings-row-chevron">→</span>
+          </button>
+          <button class="settings-row settings-row-btn" data-import>
+            <span class="settings-row-label">Importer un backup</span>
+            <span class="settings-row-chevron">→</span>
+          </button>
+          <input type="file" accept=".json,application/json" hidden data-import-file />
+          <button class="settings-row settings-row-btn" data-markdown-report>
+            <span class="settings-row-label">Rapport hebdo (markdown)</span>
+            <span class="settings-row-chevron">↓</span>
+          </button>
+          <button class="settings-row settings-row-btn settings-row-danger" data-reset>
+            <span class="settings-row-label">Réinitialiser l'application</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Info</div>
+        <div class="settings-list">
+          <div class="settings-row">
+            <span class="settings-row-label">Date de démarrage</span>
+            <span class="settings-row-value" data-setting-startdate>—</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Version</span>
+            <span class="settings-row-value">0.3 · S3c</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Debug — prompt expert (lecture seule)</div>
+        <details class="debug-details">
+          <summary class="debug-summary">Afficher ce qui est envoyé à Claude</summary>
+          <div class="debug-content" data-debug-content></div>
+        </details>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="tabbar" aria-label="Navigation principale">
+    <a href="#today" class="tab tab-active" data-tab="today">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <span>Aujourd'hui</span>
+    </a>
+    <a href="#blocs" class="tab" data-tab="blocs">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <span>Blocs</span>
+    </a>
+    <a href="#program" class="tab" data-tab="program">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
+      <span>Programme</span>
+    </a>
+    <a href="#ritual" class="tab" data-tab="ritual">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.4 8.4 2.5 9l5.2 4.5L6.2 21 12 17.3 17.8 21l-1.5-7.5L21.5 9l-6.9-.6L12 2Z"/></svg>
+      <span>Rituel</span>
+    </a>
+    <a href="#stats" class="tab" data-tab="stats">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Stats</span>
+    </a>
+    <a href="#settings" class="tab" data-tab="settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      <span>Réglages</span>
+    </a>
+  </nav>
+
+  <!-- ===================== TIMER 120s OVERLAY ===================== -->
+  <div class="timer-overlay" data-timer-overlay hidden>
+    <div class="timer-content">
+      <div class="timer-label">Plus petite action</div>
+      <div class="timer-action" data-timer-action>—</div>
+      <div class="timer-ring">
+        <svg viewBox="0 0 160 160" class="timer-ring-svg">
+          <circle class="timer-ring-track" cx="80" cy="80" r="72" />
+          <circle class="timer-ring-progress" cx="80" cy="80" r="72" data-timer-progress />
+        </svg>
+        <div class="timer-countdown" data-timer-countdown>2:00</div>
+      </div>
+      <div class="timer-actions">
+        <button class="btn-timer-cancel" data-timer-cancel>Annuler</button>
+        <button class="btn-timer-done" data-timer-done>J'ai démarré</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CLOSE-DAY MODAL ===================== -->
+  <div class="modal-backdrop" data-close-modal hidden>
+    <div class="modal-sheet">
+      <header class="modal-header">
+        <h2 class="modal-title">Clôture de journée</h2>
+        <button class="modal-close" data-close-modal-dismiss aria-label="Fermer">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <section class="close-summary">
+          <div class="close-summary-item">
+            <div class="close-summary-value" data-close-done>0 / 3</div>
+            <div class="close-summary-label">Tâches terminées</div>
+          </div>
+          <div class="close-summary-item">
+            <div class="close-summary-value" data-close-switches>0</div>
+            <div class="close-summary-label">Task switches</div>
+          </div>
+          <div class="close-summary-item">
+            <div class="close-summary-value" data-close-ritual>0</div>
+            <div class="close-summary-label">Utilisations rituel</div>
+          </div>
+        </section>
+
+        <section class="close-section" data-srhi-section hidden>
+          <h3 class="close-section-title">Revue hebdomadaire — Loi des 3 tâches</h3>
+          <p class="close-section-hint">Une fois par semaine. Pour chaque affirmation, note ton accord (1 pas du tout, 7 totalement).</p>
+          <div class="srhi-list" data-srhi-list></div>
+        </section>
+
+        <section class="close-section" data-diag-section hidden>
+          <h3 class="close-section-title">Diagnostic Claude — 5 techniques</h3>
+          <p class="close-section-hint">Reçois un score 0-10 par technique + une action corrective pour la semaine à venir.</p>
+          <button class="btn-modal-save" style="background:var(--surface-3);color:var(--tint)" data-weekly-diag>Recevoir mon diagnostic</button>
+          <div data-weekly-diag-result></div>
+        </section>
+
+        <section class="close-section">
+          <h3 class="close-section-title">Effet Zeigarnik</h3>
+          <p class="close-section-hint">Quelle est la prochaine action claire pour demain ?</p>
+          <textarea class="close-zeigarnik" data-close-zeigarnik rows="3" placeholder="Ex : ouvrir le fichier propale.md et relire l'intro"></textarea>
+        </section>
+      </div>
+
+      <footer class="modal-footer">
+        <button class="btn-modal-save" data-close-save>Terminer la journée</button>
+      </footer>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
