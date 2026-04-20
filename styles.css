@@ -1327,7 +1327,7 @@ button { cursor: pointer; }
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-top: 0.5px solid var(--separator);
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   z-index: 50;
 }
 
@@ -1339,9 +1339,9 @@ button { cursor: pointer; }
   gap: 3px;
   color: var(--text-dim);
   text-decoration: none;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 500;
-  padding: 8px 2px;
+  padding: 8px 1px;
   transition: color 0.15s var(--ease);
   min-height: 44px;
   letter-spacing: -0.005em;
