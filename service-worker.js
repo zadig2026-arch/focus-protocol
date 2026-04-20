@@ -4,7 +4,7 @@
    et l'API Claude/GitHub (réseau frais quand possible).
    ========================================================= */
 
-const VERSION = 'fp-v0.6-notes-7col';
+const VERSION = 'fp-v0.6-notes-6col';
 const SHELL_CACHE = `${VERSION}-shell`;
 
 const SHELL_ASSETS = [
