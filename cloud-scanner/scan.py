@@ -44,6 +44,14 @@ GOOGLE_CLIENT_ID = os.environ['GOOGLE_CLIENT_ID']
 GOOGLE_CLIENT_SECRET = os.environ['GOOGLE_CLIENT_SECRET']
 GOOGLE_REFRESH_TOKEN = os.environ['GOOGLE_REFRESH_TOKEN']
 
+# VAPID optionnels — sans eux, les pushes sont simplement skippés.
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_SUBJECT = os.environ.get('VAPID_SUBJECT', 'mailto:example@example.com')
+
+# Mode de run : morning | evening | scan (par défaut)
+RUN_MODE = os.environ.get('RUN_MODE', 'scan').lower()
+
 # --------------------------------------------------------------------- GOOGLE
 def _google_creds():
     creds = Credentials(
@@ -325,8 +333,56 @@ def push_gist(payload: dict) -> str:
     return r.json().get('html_url', '')
 
 
+# --------------------------------------------------------------------- WEB PUSH
+def fetch_push_subscription() -> dict | None:
+    try:
+        r = requests.get(
+            f'https://api.github.com/gists/{GIST_ID}',
+            headers=_gh_headers(), timeout=20,
+        )
+        r.raise_for_status()
+        raw = r.json().get('files', {}).get('push-subscription.json') or {}
+        if not raw.get('content'):
+            return None
+        data = json.loads(raw['content'])
+        return data.get('subscription')
+    except Exception as e:
+        print(f'Warn: fetch push subscription failed: {e}', file=sys.stderr)
+        return None
+
+
+def send_push(title: str, body: str, url: str = './') -> bool:
+    """Envoie une Web Push à l'abonnement stocké dans le Gist. Silent si VAPID absent."""
+    if not VAPID_PRIVATE_KEY or not VAPID_PUBLIC_KEY:
+        print('  (VAPID non configurée — push skippé)')
+        return False
+    sub = fetch_push_subscription()
+    if not sub:
+        print('  (pas de souscription dans le Gist — push skippé)')
+        return False
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        print('  ! pywebpush absent (requirements.txt)', file=sys.stderr)
+        return False
+    payload = json.dumps({'title': title, 'body': body, 'url': url, 'tag': 'focus-reminder'})
+    try:
+        webpush(
+            subscription_info=sub,
+            data=payload,
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={'sub': VAPID_SUBJECT},
+            timeout=15,
+        )
+        return True
+    except WebPushException as e:
+        print(f'  ! webpush failed: {e}', file=sys.stderr)
+        return False
+
+
 # --------------------------------------------------------------------- MAIN
-def main() -> None:
+def run_scan() -> int:
+    """Scan complet + push Gist. Retourne le nombre de suggestions produites."""
     print('→ Scanning Gmail…')
     gmail = scan_gmail()
     print(f'   {len(gmail)} threads')
@@ -355,12 +411,13 @@ def main() -> None:
     else:
         skipped.append('user-notes')
 
+    suggestions = result.get('suggestions', [])
     payload = {
         'generatedAt': datetime.now(timezone.utc).isoformat(),
         'scannedSources': scanned,
         'skippedSources': skipped,
         'notesUsed': bool(notes),
-        'suggestions': result.get('suggestions', []),
+        'suggestions': suggestions,
     }
 
     print('→ Pushing to Gist…')
@@ -368,8 +425,25 @@ def main() -> None:
     print(f'   {url}')
 
     print('\n=== Suggestions ===')
-    for i, s in enumerate(payload['suggestions'], 1):
+    for i, s in enumerate(suggestions, 1):
         print(f'  {i}. [{s.get("type", "?").upper()}] {s.get("title", "?")}')
+    return len(suggestions)
+
+
+def main() -> None:
+    print(f'→ Run mode: {RUN_MODE}')
+
+    if RUN_MODE == 'morning':
+        count = run_scan()
+        print('→ Sending morning push…')
+        body = f'{count} suggestions prêtes · ouvre Focus pour choisir tes 3 tâches.' if count else 'Brief du matin — ouvre Focus pour commencer.'
+        send_push('Focus — brief du matin', body, './#today')
+    elif RUN_MODE == 'evening':
+        print('→ Sending evening push (pas de scan)…')
+        send_push('Focus — clôture', 'Quelle est la prochaine action claire pour demain ?', './#today')
+    else:
+        run_scan()
+
     print('✓ Done.')
 
 

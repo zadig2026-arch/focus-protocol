@@ -4,6 +4,7 @@
    ========================================================= */
 
 const NS = 'fp';
+export const SCHEMA_VERSION = 1;
 
 function read(key, fallback) {
   try {
@@ -19,6 +20,25 @@ function write(key, value) {
     localStorage.setItem(`${NS}.${key}`, JSON.stringify(value));
   } catch (e) {
     console.error('[storage] write failed', key, e);
+  }
+}
+
+export function getSchemaVersion() {
+  return read('schemaVersion', null);
+}
+
+export function ensureSchema() {
+  const current = getSchemaVersion();
+  if (current === null) {
+    write('schemaVersion', SCHEMA_VERSION);
+    return SCHEMA_VERSION;
+  }
+  return current;
+}
+
+function emitDaysChanged() {
+  if (typeof document !== 'undefined') {
+    document.dispatchEvent(new CustomEvent('fp:days-changed'));
   }
 }
 
@@ -89,7 +109,13 @@ export function updateDay(dateISO, patch) {
   if (!all[dateISO]) all[dateISO] = DEFAULT_DAY();
   all[dateISO] = { ...all[dateISO], ...patch };
   write('days', all);
+  emitDaysChanged();
   return all[dateISO];
+}
+
+export function replaceAllDays(nextDays) {
+  write('days', nextDays || {});
+  emitDaysChanged();
 }
 
 export function updatePriority(dateISO, index, patch) {
@@ -219,6 +245,7 @@ export function exportAll() {
   return {
     exportedAt: new Date().toISOString(),
     version: 1,
+    schemaVersion: SCHEMA_VERSION,
     settings: getSettings(),
     days: read('days', {}),
     ritual: { log: getRitualLog() },
@@ -228,12 +255,16 @@ export function exportAll() {
 
 export function importAll(payload) {
   if (!payload || payload.version !== 1) throw new Error('Format invalide');
+  if (payload.schemaVersion && payload.schemaVersion > SCHEMA_VERSION) {
+    throw new Error(`Schéma inconnu (v${payload.schemaVersion}) — mets à jour l'app.`);
+  }
   if (payload.settings) write('settings', payload.settings);
   if (payload.days) write('days', payload.days);
   if (payload.ritual?.log) write('ritual.log', payload.ritual.log);
   if (payload.program) write('program', payload.program);
+  write('schemaVersion', SCHEMA_VERSION);
 }
 
 export function resetAll() {
-  ['settings', 'days', 'ritual.log', 'program'].forEach(k => localStorage.removeItem(`${NS}.${k}`));
+  ['settings', 'days', 'ritual.log', 'program', 'schemaVersion'].forEach(k => localStorage.removeItem(`${NS}.${k}`));
 }

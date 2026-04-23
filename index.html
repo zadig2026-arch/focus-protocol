@@ -29,11 +29,17 @@
     <section class="screen active" data-tab="today">
       <header class="screen-header">
         <div class="date-line" data-today-date>—</div>
-        <div class="phase-line">
-          <span class="phase-day" data-day-counter>Jour 1 / 84</span>
-          <span class="phase-name">Phase 1 — Fondation</span>
-        </div>
+        <div class="today-progress" data-today-progress>0 / 3 faites</div>
       </header>
+
+      <div class="status-banner status-banner-warn" data-api-missing hidden>
+        <span>Clé API manquante — l'IA est désactivée.</span>
+        <a href="#settings" class="status-banner-cta" data-goto-settings>Configurer →</a>
+      </div>
+
+      <div class="status-banner status-banner-info" data-scan-freshness hidden>
+        Dernier scan IA : <span data-scan-when>—</span>
+      </div>
 
       <article class="card zeigarnik-recall" data-zeigarnik-recall hidden>
         <div class="card-label">
@@ -175,152 +181,6 @@
       </button>
     </section>
 
-    <!-- ===================== BLOCS (placeholder S2+) ===================== -->
-    <section class="screen" data-tab="blocs">
-      <header class="screen-header">
-        <div class="date-line">Blocs de la semaine</div>
-        <div class="phase-line"><span class="phase-day">À venir</span></div>
-      </header>
-      <div class="placeholder-block">Planification des time-blocks — à venir en S2c.</div>
-    </section>
-
-    <!-- ===================== PROGRAMME ===================== -->
-    <section class="screen" data-tab="program">
-      <header class="screen-header">
-        <div class="date-line">Programme 12 semaines</div>
-        <div class="phase-line">
-          <span class="phase-day" data-day-counter>Jour 1 / 84</span>
-          <span class="phase-name" data-program-percent>1 %</span>
-        </div>
-      </header>
-
-      <div class="progress-global">
-        <div class="progress-bar"><div class="progress-fill" style="width: 1%" data-program-fill></div></div>
-      </div>
-
-      <article class="phase-card phase-active">
-        <header class="phase-card-header">
-          <div>
-            <div class="phase-card-number">Phase 1</div>
-            <h3 class="phase-card-title">Fondation</h3>
-          </div>
-          <span class="phase-card-status">En cours</span>
-        </header>
-        <div class="phase-card-range">Semaines 1 – 4 · Jours 1 – 28</div>
-        <div class="phase-card-bar"><div class="phase-card-fill" style="width: 3%"></div></div>
-        <div class="habit-chip-row">
-          <span class="habit-chip habit-chip-active">Loi des 3 tâches</span>
-        </div>
-        <div class="srhi-block">
-          <div class="srhi-header">
-            <span class="srhi-label">Automaticité (SRHI)</span>
-            <span class="srhi-score">—<span class="srhi-max"> / 7</span></span>
-          </div>
-          <svg class="srhi-chart" viewBox="0 0 300 60" preserveAspectRatio="none">
-            <line x1="0" y1="8" x2="300" y2="8" stroke-dasharray="4 4" stroke-width="1"/>
-          </svg>
-          <div class="srhi-target">Cible : ≥6 pendant 10 jours consécutifs</div>
-        </div>
-      </article>
-
-      <article class="phase-card phase-locked">
-        <header class="phase-card-header">
-          <div>
-            <div class="phase-card-number">Phase 2</div>
-            <h3 class="phase-card-title">Exécution</h3>
-          </div>
-          <span class="phase-card-status locked">Verrouillée</span>
-        </header>
-        <div class="phase-card-range">Semaines 5 – 8</div>
-        <div class="habit-chip-row">
-          <span class="habit-chip">Loi des 3 tâches</span>
-          <span class="habit-chip habit-chip-new">+ Zeigarnik</span>
-          <span class="habit-chip habit-chip-new">+ Batching</span>
-        </div>
-      </article>
-
-      <article class="phase-card phase-locked">
-        <header class="phase-card-header">
-          <div>
-            <div class="phase-card-number">Phase 3</div>
-            <h3 class="phase-card-title">Ancrage profond</h3>
-          </div>
-          <span class="phase-card-status locked">Verrouillée</span>
-        </header>
-        <div class="phase-card-range">Semaines 9 – 12</div>
-        <div class="habit-chip-row">
-          <span class="habit-chip">Loi des 3 tâches</span>
-          <span class="habit-chip">Zeigarnik</span>
-          <span class="habit-chip habit-chip-new">+ Rituel d'ancrage</span>
-          <span class="habit-chip habit-chip-new">+ Quarantaine</span>
-        </div>
-      </article>
-
-      <article class="phase-card phase-locked">
-        <header class="phase-card-header">
-          <div>
-            <div class="phase-card-number">Phase 4</div>
-            <h3 class="phase-card-title">Consolidation</h3>
-          </div>
-          <span class="phase-card-status locked">Verrouillée</span>
-        </header>
-        <div class="phase-card-range">Jours 90 – 150 · maintien</div>
-        <div class="habit-chip-row">
-          <span class="habit-chip habit-chip-maint">SRHI hebdomadaire</span>
-        </div>
-      </article>
-
-      <button class="btn-next-phase" disabled>
-        Avancer à la phase suivante
-        <span class="btn-next-hint">disponible quand SRHI ≥ 6 × 10 jours</span>
-      </button>
-    </section>
-
-    <!-- ===================== RITUEL ===================== -->
-    <section class="screen" data-tab="ritual">
-      <header class="screen-header">
-        <div class="date-line">Rituel d'ancrage</div>
-        <div class="phase-line">
-          <span class="phase-name">Disponible en Phase 3</span>
-        </div>
-      </header>
-
-      <div class="ritual-setup">
-        <label class="ritual-label">Ancrage (geste ou objet)</label>
-        <input type="text" class="ritual-input" placeholder="Ex : mettre ma casquette bleue…" data-ritual-anchor />
-        <label class="ritual-label">État mental cible</label>
-        <input type="text" class="ritual-input" placeholder="Ex : deep work 90 min…" data-ritual-mental />
-      </div>
-
-      <button class="btn-ritual-use" data-ritual-use>
-        <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-        <span>Je viens de l'utiliser</span>
-        <span class="btn-ritual-count" data-ritual-count>+0</span>
-      </button>
-
-      <div class="streak-block">
-        <div class="streak-number">
-          <span class="streak-value" data-ritual-streak>0</span>
-          <span class="streak-label">jours consécutifs</span>
-        </div>
-        <div class="streak-meta">Record personnel : <strong data-ritual-record>0 jours</strong></div>
-      </div>
-
-      <div class="calendar-block">
-        <div class="calendar-header">
-          <span data-ritual-month>—</span>
-          <span class="calendar-legend">
-            <span class="dot dot-0"></span>
-            <span class="dot dot-1"></span>
-            <span class="dot dot-2"></span>
-            <span class="dot dot-3"></span>
-          </span>
-        </div>
-        <div class="calendar-grid" data-ritual-grid></div>
-      </div>
-    </section>
-
-    <!-- ===================== STATS (placeholder S2+) ===================== -->
     <!-- ===================== NOTES DE CONTEXTE ===================== -->
     <section class="screen" data-tab="notes">
       <header class="screen-header">
@@ -380,6 +240,59 @@
       </div>
 
       <div class="settings-group">
+        <div class="settings-label">Shortcut iOS — note rapide</div>
+        <div class="settings-list">
+          <button class="settings-row settings-row-btn" data-copy-shortcut-config>
+            <span class="settings-row-label">Copier la config (JSON)</span>
+            <span class="settings-row-chevron">⎘</span>
+          </button>
+        </div>
+        <details class="debug-details">
+          <summary class="debug-summary">Voir les 4 étapes pour créer le raccourci</summary>
+          <div class="debug-content shortcut-steps">
+            <ol>
+              <li>App <strong>Raccourcis</strong> iOS → <strong>+</strong> Nouveau → nomme <em>Focus Note</em></li>
+              <li>Ajoute ces actions dans l'ordre :
+                <ul>
+                  <li><strong>Demander une entrée</strong> (texte, invite : « Quelle note ? »)</li>
+                  <li><strong>Obtenir le contenu de l'URL</strong>
+                    <br>URL : <code>https://api.github.com/gists/[gistId]</code>
+                    <br>Méthode : <code>GET</code>
+                    <br>En-tête <code>Authorization</code> : <code>Bearer [token]</code>
+                    <br>En-tête <code>Accept</code> : <code>application/vnd.github+json</code>
+                  </li>
+                  <li><strong>Obtenir la valeur du dictionnaire</strong> : <code>files.notes.md.content</code></li>
+                  <li><strong>Texte</strong> : <code>[Valeur du dictionnaire]</code> saut de ligne <code>— [Entrée demandée]</code></li>
+                  <li><strong>Obtenir le contenu de l'URL</strong> (appel PATCH)
+                    <br>URL : idem, Méthode : <code>PATCH</code>
+                    <br>+ en-tête <code>Content-Type</code> : <code>application/json</code>
+                    <br>Corps (JSON) : <code>{"files":{"notes.md":{"content":"[Texte]"}}}</code>
+                  </li>
+                </ul>
+              </li>
+              <li>Ajoute le raccourci à l'<strong>écran d'accueil</strong> (icône + titre)</li>
+              <li>Lance depuis l'icône ou via Siri <em>« Note Focus »</em></li>
+            </ol>
+          </div>
+        </details>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Notifications</div>
+        <div class="settings-list">
+          <label class="settings-row">
+            <span class="settings-row-label">Rappels matin &amp; soir (Web Push)</span>
+            <input type="checkbox" class="settings-toggle" data-setting-notifs />
+          </label>
+          <div class="settings-row">
+            <span class="settings-row-label">État</span>
+            <span class="settings-row-value" data-notif-status>—</span>
+          </div>
+        </div>
+        <div class="settings-hint">Fonctionne uniquement si la PWA est <strong>installée sur l'écran d'accueil iOS</strong> (iOS 16.4+). Le scanner cloud envoie un push matin (07:00 NZDT, ~19:00 UTC) et soir (21:00 NZDT, ~09:00 UTC).</div>
+      </div>
+
+      <div class="settings-group">
         <div class="settings-label">Horaires</div>
         <div class="settings-list">
           <label class="settings-row">
@@ -391,6 +304,11 @@
             <input type="time" class="settings-row-input" data-setting-evening-time />
           </label>
         </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Semaine passée</div>
+        <div class="history-list" data-history-list></div>
       </div>
 
       <div class="settings-group">
@@ -445,18 +363,6 @@
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
       <span>Aujourd'hui</span>
     </a>
-    <a href="#blocs" class="tab" data-tab="blocs">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      <span>Blocs</span>
-    </a>
-    <a href="#program" class="tab" data-tab="program">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
-      <span>Programme</span>
-    </a>
-    <a href="#ritual" class="tab" data-tab="ritual">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.4 8.4 2.5 9l5.2 4.5L6.2 21 12 17.3 17.8 21l-1.5-7.5L21.5 9l-6.9-.6L12 2Z"/></svg>
-      <span>Rituel</span>
-    </a>
     <a href="#notes" class="tab" data-tab="notes">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       <span>Notes</span>
@@ -506,16 +412,6 @@
             <div class="close-summary-value" data-close-switches>0</div>
             <div class="close-summary-label">Task switches</div>
           </div>
-          <div class="close-summary-item">
-            <div class="close-summary-value" data-close-ritual>0</div>
-            <div class="close-summary-label">Utilisations rituel</div>
-          </div>
-        </section>
-
-        <section class="close-section" data-srhi-section hidden>
-          <h3 class="close-section-title">Revue hebdomadaire — Loi des 3 tâches</h3>
-          <p class="close-section-hint">Une fois par semaine. Pour chaque affirmation, note ton accord (1 pas du tout, 7 totalement).</p>
-          <div class="srhi-list" data-srhi-list></div>
         </section>
 
         <section class="close-section" data-diag-section hidden>

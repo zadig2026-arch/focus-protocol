@@ -10,13 +10,10 @@ import {
   getDay,
   updatePriority,
   addTaskSwitch,
-  getRitualCount,
-  incrementRitual,
-  getRitualLog,
   setZeigarnikNote,
-  setSRHI,
-  srhiAverage,
-  latestSRHI,
+  getAllDays,
+  replaceAllDays,
+  ensureSchema,
   exportAll,
   importAll,
   resetAll,
@@ -49,12 +46,26 @@ function initTabs() {
     tabs.forEach(t => t.classList.toggle('tab-active', t.dataset.tab === tabId));
     if (history.replaceState) history.replaceState(null, '', `#${tabId}`);
     window.scrollTo({ top: 0, behavior: 'instant' });
+    if (tabId === 'settings') renderHistory();
   }
 
   tabs.forEach(t => {
     t.addEventListener('click', e => {
       e.preventDefault();
       activate(t.dataset.tab);
+    });
+  });
+
+  // Liens internes vers un onglet (ex: CTA "Configurer →")
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    if (a.classList.contains('tab')) return;
+    a.addEventListener('click', e => {
+      const target = a.getAttribute('href')?.slice(1);
+      const isScreen = Array.from(screens).some(s => s.dataset.tab === target);
+      if (isScreen) {
+        e.preventDefault();
+        activate(target);
+      }
     });
   });
 
@@ -69,6 +80,14 @@ function initTabs() {
 function renderPriorities() {
   const day = getDay();
   const cards = document.querySelectorAll('[data-priority]');
+
+  const doneCount = day.priorities.filter(p => p.done).length;
+  const totalCount = day.priorities.filter(p => p.title?.trim()).length || 3;
+  const progressEl = document.querySelector('[data-today-progress]');
+  if (progressEl) {
+    progressEl.textContent = `${doneCount} / ${totalCount} faites`;
+    progressEl.classList.toggle('is-complete', doneCount > 0 && doneCount === totalCount);
+  }
 
   cards.forEach((card, i) => {
     const p = day.priorities[i];
@@ -153,12 +172,23 @@ function bindPriorityHandlers() {
     // Checkbox done
     checkbox.addEventListener('change', () => {
       const done = checkbox.checked;
+      const before = getDay().priorities.filter(p => p.done).length;
       updatePriority(todayISO(), i, {
         done,
         doneAt: done ? new Date().toISOString() : null,
       });
       renderPriorities();
       if (done && navigator.vibrate) navigator.vibrate([15, 30, 15]);
+
+      // Auto-clôture si on vient de cocher la 3e
+      const after = getDay().priorities.filter(p => p.done).length;
+      const total = getDay().priorities.filter(p => p.title?.trim()).length;
+      if (done && after === 3 && before === 2 && total === 3 && !getDay().zeigarnikNote?.text) {
+        setTimeout(() => {
+          showToast('🎯 Journée bouclée — pense à ta prochaine action.');
+          openCloseModal();
+        }, 500);
+      }
     });
   });
 }
@@ -202,229 +232,15 @@ function renderZeigarnikRecall() {
 }
 
 /* =====================================================
-   Ritual — count, streak, calendar, anchor inputs
+   Header date
    ===================================================== */
-function renderRitualCount() {
-  const el = document.querySelector('[data-ritual-count]');
-  if (el) el.textContent = `+${getRitualCount()}`;
-}
-
-function computeStreaks(log) {
-  if (!log || !log.length) return { current: 0, record: 0 };
-  const usedDates = new Set(log.filter(e => e.count > 0).map(e => e.date));
-
-  // Record: plus longue suite de jours consécutifs
-  let record = 0;
-  const sorted = [...usedDates].sort();
-  let run = 0;
-  let prevISO = null;
-  for (const iso of sorted) {
-    if (prevISO) {
-      const prev = new Date(prevISO);
-      const curr = new Date(iso);
-      const diff = Math.round((curr - prev) / 86400000);
-      run = diff === 1 ? run + 1 : 1;
-    } else {
-      run = 1;
-    }
-    if (run > record) record = run;
-    prevISO = iso;
-  }
-
-  // Current streak : remonte depuis aujourd'hui (ou hier si rien aujourd'hui)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let walker = new Date(today);
-  if (!usedDates.has(todayISO(walker))) {
-    walker.setDate(walker.getDate() - 1);
-  }
-  let current = 0;
-  while (usedDates.has(todayISO(walker))) {
-    current += 1;
-    walker.setDate(walker.getDate() - 1);
-  }
-  return { current, record };
-}
-
-function renderRitualStreak() {
-  const { current, record } = computeStreaks(getRitualLog());
-  const streakEl = document.querySelector('[data-ritual-streak]');
-  const recordEl = document.querySelector('[data-ritual-record]');
-  if (streakEl) streakEl.textContent = String(current);
-  if (recordEl) recordEl.textContent = `${record} jour${record > 1 ? 's' : ''}`;
-}
-
-function renderRitualCalendar() {
-  const grid = document.querySelector('[data-ritual-grid]');
-  const monthEl = document.querySelector('[data-ritual-month]');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const todayNum = now.getDate();
-
-  if (monthEl) {
-    const formatted = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    monthEl.textContent = formatted.charAt(0).toUpperCase() + formatted.slice(1);
-  }
-
-  const firstDay = new Date(year, month, 1);
-  const firstDayOfWeek = (firstDay.getDay() + 6) % 7; // Lundi = 0
-  const lastDay = new Date(year, month + 1, 0).getDate();
-
-  const counts = Object.fromEntries(getRitualLog().map(e => [e.date, e.count]));
-
-  // Padding avant
-  for (let i = 0; i < firstDayOfWeek; i++) {
-    const empty = document.createElement('div');
-    empty.className = 'cal-cell cal-empty';
-    grid.appendChild(empty);
-  }
-
-  for (let d = 1; d <= lastDay; d++) {
-    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const cnt = counts[iso] || 0;
-    const cell = document.createElement('div');
-    cell.className = 'cal-cell';
-    cell.title = `${iso} — ${cnt} utilisation${cnt > 1 ? 's' : ''}`;
-    if (d > todayNum) {
-      cell.classList.add('cal-future');
-    } else {
-      if (cnt >= 4) cell.classList.add('dot-3');
-      else if (cnt >= 2) cell.classList.add('dot-2');
-      else if (cnt >= 1) cell.classList.add('dot-1');
-    }
-    if (d === todayNum) cell.classList.add('dot-today');
-    grid.appendChild(cell);
-  }
-}
-
-function renderRitualInputs() {
-  const s = getSettings();
-  const anchorEl = document.querySelector('[data-ritual-anchor]');
-  const mentalEl = document.querySelector('[data-ritual-mental]');
-  if (anchorEl && anchorEl !== document.activeElement) anchorEl.value = s.anchor || '';
-  if (mentalEl && mentalEl !== document.activeElement) mentalEl.value = s.mentalState || '';
-}
-
-function bindRitualInputs() {
-  const anchorEl = document.querySelector('[data-ritual-anchor]');
-  const mentalEl = document.querySelector('[data-ritual-mental]');
-  anchorEl?.addEventListener('blur', () => updateSettings({ anchor: anchorEl.value.trim() }));
-  mentalEl?.addEventListener('blur', () => updateSettings({ mentalState: mentalEl.value.trim() }));
-}
-
-function refreshRitual() {
-  renderRitualCount();
-  renderRitualStreak();
-  renderRitualCalendar();
-}
-
-function bindRitual() {
-  const btn = document.querySelector('[data-ritual-use]');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    incrementRitual();
-    refreshRitual();
-    if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
-  });
-}
-
-/* =====================================================
-   Header date + day counter + current phase
-   ===================================================== */
-function computeProgram() {
-  const settings = getSettings();
-  const start = new Date(settings.startDate);
-  const now = new Date();
-  const dayNum = Math.max(1, Math.floor((now - start) / 86400000) + 1);
-  const totalDays = 84;
-  const globalPct = Math.min(100, Math.round((dayNum / totalDays) * 100));
-
-  let phase = 1;
-  if (dayNum > 84) phase = 4;
-  else if (dayNum > 56) phase = 3;
-  else if (dayNum > 28) phase = 2;
-
-  // days into current phase / phase length
-  const phaseRanges = { 1: [1, 28], 2: [29, 56], 3: [57, 84], 4: [85, 150] };
-  const [a, b] = phaseRanges[phase];
-  const phaseLen = b - a + 1;
-  const phaseDayIdx = Math.min(phaseLen, Math.max(1, dayNum - a + 1));
-  const phasePct = Math.round((phaseDayIdx / phaseLen) * 100);
-
-  return { dayNum, globalPct, phase, phasePct };
-}
-
-const PHASE_NAMES = { 1: 'Fondation', 2: 'Exécution', 3: 'Ancrage profond', 4: 'Consolidation' };
-
 function renderHeader() {
-  const { dayNum, phase } = computeProgram();
   const now = new Date();
-
   const dateEls = document.querySelectorAll('[data-today-date]');
   const formatted = now.toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
   dateEls.forEach(el => el.textContent = formatted);
-
-  const dayEls = document.querySelectorAll('[data-day-counter]');
-  dayEls.forEach(el => el.textContent = `Jour ${dayNum} / 84`);
-
-  // Phase label in today header
-  const phaseNameEl = document.querySelector('#today-phase-name') || document.querySelector('section[data-tab="today"] .phase-name');
-  if (phaseNameEl) phaseNameEl.textContent = `Phase ${phase} — ${PHASE_NAMES[phase]}`;
-}
-
-/* =====================================================
-   Programme screen — dynamic
-   ===================================================== */
-function renderProgramme() {
-  const { dayNum, globalPct, phase, phasePct } = computeProgram();
-
-  const fill = document.querySelector('[data-program-fill]');
-  if (fill) fill.style.width = `${globalPct}%`;
-  const pctEl = document.querySelector('[data-program-percent]');
-  if (pctEl) pctEl.textContent = `${globalPct} %`;
-
-  // Mark active phase card
-  const phaseCards = document.querySelectorAll('section[data-tab="program"] .phase-card');
-  phaseCards.forEach((card, i) => {
-    const isActive = (i + 1) === phase;
-    card.classList.toggle('phase-active', isActive);
-    card.classList.toggle('phase-locked', !isActive && (i + 1) > phase);
-    const statusEl = card.querySelector('.phase-card-status');
-    if (statusEl) {
-      if (isActive) {
-        statusEl.textContent = 'En cours';
-        statusEl.classList.remove('locked');
-      } else if ((i + 1) < phase) {
-        statusEl.textContent = 'Terminée';
-        statusEl.classList.remove('locked');
-      } else {
-        statusEl.textContent = 'Verrouillée';
-        statusEl.classList.add('locked');
-      }
-    }
-  });
-
-  // Active phase fill
-  const activeFill = document.querySelector('section[data-tab="program"] .phase-active .phase-card-fill');
-  if (activeFill) activeFill.style.width = `${phasePct}%`;
-
-  // SRHI score for Loi des 3 tâches (dernier dimanche)
-  const latest = latestSRHI('3tasks');
-  const scoreEl = document.querySelector('section[data-tab="program"] .phase-active .srhi-score');
-  if (scoreEl) {
-    if (latest) {
-      const avg = srhiAverage(latest);
-      scoreEl.innerHTML = `${avg}<span class="srhi-max"> / 7</span>`;
-    } else {
-      scoreEl.innerHTML = `—<span class="srhi-max"> / 7</span>`;
-    }
-  }
 }
 
 /* =====================================================
@@ -446,6 +262,55 @@ function renderSettings() {
   });
   const startEl = document.querySelector('[data-setting-startdate]');
   if (startEl) startEl.textContent = s.startDate || '—';
+  renderHistory();
+}
+
+function renderHistory() {
+  const container = document.querySelector('[data-history-list]');
+  if (!container) return;
+  const all = getAllDays();
+  const today = new Date();
+  const rows = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const iso = todayISO(d);
+    const day = all[iso];
+    const weekday = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    if (!day) {
+      rows.push({ iso, weekday, empty: true });
+      continue;
+    }
+    const done = (day.priorities || []).filter(p => p.done).length;
+    const total = (day.priorities || []).filter(p => p.title?.trim()).length;
+    const switches = (day.taskSwitches || []).length;
+    const zeig = day.zeigarnikNote?.text || '';
+    rows.push({ iso, weekday, done, total, switches, zeig, empty: false });
+  }
+  const hasAny = rows.some(r => !r.empty);
+  if (!hasAny) {
+    container.innerHTML = `<div class="history-row-empty">Pas encore de données cette semaine.</div>`;
+    return;
+  }
+  container.innerHTML = rows.map(r => {
+    if (r.empty) {
+      return `<div class="history-row">
+        <div class="history-row-head">
+          <span class="history-row-date">${r.weekday}</span>
+          <span class="history-row-stats">—</span>
+        </div>
+      </div>`;
+    }
+    const complete = r.total > 0 && r.done === r.total;
+    const stats = `${r.done}/${r.total || 0} tâches · ${r.switches} switch${r.switches > 1 ? 'es' : ''}`;
+    return `<div class="history-row">
+      <div class="history-row-head">
+        <span class="history-row-date">${r.weekday}</span>
+        <span class="history-row-stats${complete ? ' is-complete' : ''}">${stats}</span>
+      </div>
+      ${r.zeig ? `<div class="history-row-zeig">« ${escapeHtml(r.zeig)} »</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function bindSettings() {
@@ -483,6 +348,17 @@ EOF`;
     showToast('Commande copiée — colle dans ton terminal Mac');
   });
 
+  document.querySelector('[data-copy-shortcut-config]')?.addEventListener('click', () => {
+    const s = getSettings();
+    if (!s.gistId || !s.githubToken) {
+      showToast('Renseigne d\'abord Gist ID + Token');
+      return;
+    }
+    const cfg = JSON.stringify({ gistId: s.gistId, token: s.githubToken }, null, 2);
+    navigator.clipboard?.writeText(cfg);
+    showToast('Config copiée — colle dans ton Shortcut iOS');
+  });
+
   document.querySelector('[data-export]')?.addEventListener('click', doExport);
 
   const importFile = document.querySelector('[data-import-file]');
@@ -494,7 +370,7 @@ EOF`;
   });
 
   document.querySelector('[data-reset]')?.addEventListener('click', () => {
-    if (confirm('Tout réinitialiser ? Toutes tes données (tâches, SRHI, rituel, réglages) seront effacées. Action irréversible.')) {
+    if (confirm('Tout réinitialiser ? Toutes tes données (tâches, notes, réglages) seront effacées. Action irréversible.')) {
       resetAll();
       location.reload();
     }
@@ -512,8 +388,6 @@ function doMarkdownReport() {
     days.push(todayISO(d));
   }
   const allDays = JSON.parse(localStorage.getItem('fp.days') || '{}');
-  const ritualLog = JSON.parse(localStorage.getItem('fp.ritual.log') || '[]');
-  const ritualByDate = Object.fromEntries(ritualLog.map(e => [e.date, e.count]));
 
   const lines = [
     `# Rapport Focus Protocol — semaine du ${days[0]} au ${days[6]}`,
@@ -527,16 +401,9 @@ function doMarkdownReport() {
     const done = (d.priorities || []).filter(p => p.done).length;
     const total = (d.priorities || []).filter(p => p.title?.trim()).length;
     const switches = (d.taskSwitches || []).length;
-    const ritual = ritualByDate[iso] || 0;
     const zeig = d.zeigarnikNote?.text || '';
-    lines.push(`- **${iso}** · ${done}/${total} tâches · ${switches} switches · ${ritual} rituel${zeig ? ` · Zeigarnik : « ${zeig} »` : ''}`);
+    lines.push(`- **${iso}** · ${done}/${total} tâches · ${switches} switches${zeig ? ` · Zeigarnik : « ${zeig} »` : ''}`);
   });
-
-  const weekSRHI = days.map(iso => allDays[iso]?.srhiScores?.['3tasks']).find(Boolean);
-  if (weekSRHI && weekSRHI.length) {
-    const avg = weekSRHI.reduce((a, b) => a + b, 0) / weekSRHI.length;
-    lines.push('', `## SRHI — Loi des 3 tâches`, `Score moyen : **${avg.toFixed(1)} / 7**`);
-  }
 
   const text = lines.join('\n');
   const blob = new Blob([text], { type: 'text/markdown' });
@@ -653,85 +520,27 @@ function bindTimer() {
 }
 
 /* =====================================================
-   Close-day modal — SRHI + Zeigarnik
+   Close-day modal — Zeigarnik + diagnostic hebdo
    ===================================================== */
-const SRHI_STATEMENTS = [
-  "Faire mes 3 tâches est quelque chose que je fais automatiquement.",
-  "…que je fais sans y penser.",
-  "…que je fais sans devoir me le rappeler.",
-  "…que je commence à faire avant de réaliser que je suis en train de le faire.",
-  "…qui fait maintenant partie de ma routine.",
-  "…qu'il me serait étrange de ne pas faire.",
-  "…que j'aurais du mal à éviter de faire.",
-];
-
-let srhiCurrent = [null, null, null, null, null, null, null];
-
-function renderSRHI() {
-  const list = document.querySelector('[data-srhi-list]');
-  if (!list) return;
-  list.innerHTML = '';
-  SRHI_STATEMENTS.forEach((txt, i) => {
-    const item = document.createElement('div');
-    item.className = 'srhi-item';
-    item.innerHTML = `
-      <p class="srhi-statement">${txt}</p>
-      <div class="srhi-scale" data-srhi-row="${i}"></div>
-    `;
-    const row = item.querySelector('.srhi-scale');
-    for (let v = 1; v <= 7; v++) {
-      const btn = document.createElement('button');
-      btn.className = 'srhi-btn';
-      btn.textContent = String(v);
-      btn.dataset.value = String(v);
-      if (srhiCurrent[i] === v) btn.classList.add('active');
-      btn.addEventListener('click', () => {
-        srhiCurrent[i] = v;
-        row.querySelectorAll('.srhi-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        updateSaveState();
-        if (navigator.vibrate) navigator.vibrate(6);
-      });
-      row.appendChild(btn);
-    }
-    list.appendChild(item);
-  });
-}
-
 function updateCloseSummary() {
   const day = getDay();
   const done = day.priorities.filter(p => p.done).length;
   const switches = day.taskSwitches.length;
-  const ritual = getRitualCount();
   document.querySelector('[data-close-done]').textContent = `${done} / 3`;
   document.querySelector('[data-close-switches]').textContent = String(switches);
-  document.querySelector('[data-close-ritual]').textContent = String(ritual);
 }
 
-function isSRHIDay() {
+function isWeeklyReviewDay() {
   return new Date().getDay() === 0; // dimanche uniquement
-}
-
-function updateSaveState() {
-  const needsSRHI = isSRHIDay();
-  const allAnswered = !needsSRHI || srhiCurrent.every(v => v !== null);
-  const btn = document.querySelector('[data-close-save]');
-  if (btn) btn.disabled = !allAnswered;
 }
 
 function openCloseModal() {
   const day = getDay();
-  const srhiDay = isSRHIDay();
+  const weeklyDay = isWeeklyReviewDay();
 
-  // Titre dynamique
-  const title = document.querySelector('.modal-title');
-  if (title) title.textContent = srhiDay ? 'Revue de la semaine' : 'Clôture de journée';
-
-  // Section SRHI + Diagnostic (dimanche uniquement)
-  const srhiSection = document.querySelector('[data-srhi-section]');
-  if (srhiSection) srhiSection.hidden = !srhiDay;
+  // Section diagnostic (dimanche uniquement)
   const diagSection = document.querySelector('[data-diag-section]');
-  if (diagSection) diagSection.hidden = !srhiDay;
+  if (diagSection) diagSection.hidden = !weeklyDay;
 
   // Reset diagnostic UI
   const diagResult = document.querySelector('[data-weekly-diag-result]');
@@ -739,14 +548,7 @@ function openCloseModal() {
   const diagBtn = document.querySelector('[data-weekly-diag]');
   if (diagBtn) { diagBtn.hidden = false; diagBtn.disabled = false; }
 
-  if (srhiDay) {
-    const existing = day.srhiScores?.['3tasks'];
-    srhiCurrent = existing && existing.length === 7 ? [...existing] : [null, null, null, null, null, null, null];
-    renderSRHI();
-  }
-
   updateCloseSummary();
-  updateSaveState();
 
   const zeigarnikField = document.querySelector('[data-close-zeigarnik]');
   zeigarnikField.value = day.zeigarnikNote?.text || '';
@@ -763,13 +565,7 @@ function closeCloseModal() {
 }
 
 function saveCloseModal() {
-  const srhiDay = isSRHIDay();
-  if (srhiDay && srhiCurrent.some(v => v === null)) return;
   const today = todayISO();
-  if (srhiDay) {
-    setSRHI(today, '3tasks', srhiCurrent);
-    renderProgramme(); // met à jour le score SRHI affiché
-  }
   const note = document.querySelector('[data-close-zeigarnik]').value.trim();
   setZeigarnikNote(today, note);
   closeCloseModal();
@@ -938,23 +734,25 @@ async function runWeeklyDiagnostic() {
 
   try {
     const diag = await weeklyDiagnostic();
-    const order = ['3tasks', 'zeigarnik', 'ritual', 'smallestAction', 'batching'];
-    const labels = { '3tasks': 'Loi des 3 tâches', zeigarnik: 'Zeigarnik', ritual: 'Rituel', smallestAction: 'Plus petite action', batching: 'Batching' };
+    const sections = [
+      { key: 'wins', label: 'Ce qui a marché' },
+      { key: 'frictions', label: 'Ce qui a bloqué' },
+      { key: 'patternObservation', label: 'Pattern observé' },
+    ];
     container.innerHTML = `
       <div class="diag-block">
-        ${order.map(k => diag[k] ? `
+        ${sections.map(s => diag[s.key] ? `
           <div class="diag-row">
             <div class="diag-row-head">
-              <span class="diag-row-label">${labels[k]}</span>
-              <span class="diag-row-score">${diag[k].score}<span class="diag-row-max">/10</span></span>
+              <span class="diag-row-label">${s.label}</span>
             </div>
-            <p class="diag-row-obs">${escapeHtml(diag[k].observation || '')}</p>
+            <p class="diag-row-obs">${escapeHtml(diag[s.key])}</p>
           </div>
         ` : '').join('')}
-        ${diag.nextWeekAction ? `
+        ${diag.nextWeekPriority ? `
           <div class="diag-next">
-            <span class="diag-next-label">Action pour la semaine prochaine</span>
-            <p>${escapeHtml(diag.nextWeekAction)}</p>
+            <span class="diag-next-label">Priorité de la semaine prochaine</span>
+            <p>${escapeHtml(diag.nextWeekPriority)}</p>
           </div>
         ` : ''}
       </div>
@@ -1009,6 +807,38 @@ function toggleAIElements() {
   document.querySelectorAll('[data-ai-check], [data-ai-decompose]').forEach(el => {
     el.hidden = !on;
   });
+  renderApiKeyBanner();
+}
+
+function renderApiKeyBanner() {
+  const banner = document.querySelector('[data-api-missing]');
+  if (banner) banner.hidden = hasApiKey();
+}
+
+function formatAgo(iso) {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `il y a ${h} h`;
+  const d = Math.floor(h / 24);
+  return `il y a ${d} j`;
+}
+
+function renderScanFreshnessBanner() {
+  const banner = document.querySelector('[data-scan-freshness]');
+  const when = document.querySelector('[data-scan-when]');
+  if (!banner || !when) return;
+  const visible = document.querySelector('[data-inbox-section]');
+  const hasVisibleInbox = visible && !visible.hidden;
+  if (!inboxCache?.generatedAt || hasVisibleInbox) {
+    banner.hidden = true;
+    return;
+  }
+  when.textContent = formatAgo(inboxCache.generatedAt);
+  banner.hidden = false;
 }
 
 /* =====================================================
@@ -1088,9 +918,11 @@ function renderInbox() {
 
   if (!inboxCache || !inboxCache.suggestions?.length) {
     section.hidden = true;
+    renderScanFreshnessBanner();
     return;
   }
   section.hidden = false;
+  renderScanFreshnessBanner();
   if (meta) meta.textContent = formatScanTime(inboxCache.generatedAt);
 
   const dismissed = new Set(getInboxDismissed());
@@ -1255,6 +1087,214 @@ async function pushNotesToGist(text) {
   }
 }
 
+/* =====================================================
+   Backup automatique des journées vers Gist (days.json)
+   Fusion au boot : jours distants que le local ne connaît pas sont restaurés.
+   Push débounce après toute mutation de fp.days.
+   ===================================================== */
+async function fetchDaysFromGist() {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return null;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = data.files?.['days.json']?.content;
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function pushDaysToGist() {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return false;
+  try {
+    const payload = {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      days: getAllDays(),
+    };
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ files: { 'days.json': { content: JSON.stringify(payload, null, 2) } } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+let daysPushTimer = null;
+function scheduleDaysPush() {
+  clearTimeout(daysPushTimer);
+  daysPushTimer = setTimeout(() => { pushDaysToGist(); }, 2500);
+}
+
+async function restoreDaysFromGistIfNeeded() {
+  const remote = await fetchDaysFromGist();
+  if (!remote || !remote.days) return;
+  const local = getAllDays();
+  let merged = false;
+  Object.entries(remote.days).forEach(([iso, day]) => {
+    if (!local[iso]) {
+      local[iso] = day;
+      merged = true;
+    }
+  });
+  if (merged) {
+    replaceAllDays(local);
+    renderPriorities();
+    renderHistory();
+    renderZeigarnikRecall();
+  }
+}
+
+function initDaysBackup() {
+  document.addEventListener('fp:days-changed', scheduleDaysPush);
+  // Restauration depuis Gist en arrière-plan (non bloquant)
+  restoreDaysFromGistIfNeeded();
+}
+
+/* =====================================================
+   Web Push — subscribe + upload abonnement au Gist
+   Scanner (GHA cron) lit push-subscription.json et envoie des pushes.
+   ===================================================== */
+function setNotifStatus(msg) {
+  const el = document.querySelector('[data-notif-status]');
+  if (el) el.textContent = msg;
+}
+
+function urlB64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+async function fetchVapidPublicKey() {
+  try {
+    const res = await fetch('vapid-public.json', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.publicKey || '').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function pushSubscriptionToGist(subscription) {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return false;
+  try {
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      subscription: subscription ? subscription.toJSON() : null,
+    };
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ files: { 'push-subscription.json': { content: JSON.stringify(payload, null, 2) } } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function initPushNotifications() {
+  const toggle = document.querySelector('[data-setting-notifs]');
+  if (!toggle) return;
+
+  const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+  if (!supported) {
+    toggle.disabled = true;
+    setNotifStatus('Non supporté sur ce navigateur');
+    return;
+  }
+
+  const vapidKey = await fetchVapidPublicKey();
+  if (!vapidKey) {
+    toggle.disabled = true;
+    setNotifStatus('VAPID non configurée — lire vapid-public.json');
+    return;
+  }
+
+  const reg = await navigator.serviceWorker.ready;
+  const existing = await reg.pushManager.getSubscription();
+  toggle.checked = !!existing;
+  setNotifStatus(existing ? 'Actives · souscrit' : 'Désactivées');
+
+  toggle.addEventListener('change', async () => {
+    if (toggle.checked) {
+      try {
+        if (Notification.permission === 'denied') {
+          setNotifStatus('Permission refusée — autorise dans réglages iOS');
+          toggle.checked = false;
+          return;
+        }
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+          setNotifStatus('Permission refusée');
+          toggle.checked = false;
+          return;
+        }
+        setNotifStatus('Souscription…');
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToUint8Array(vapidKey),
+        });
+        const ok = await pushSubscriptionToGist(sub);
+        setNotifStatus(ok ? 'Actives · souscrit' : '⚠ Upload Gist échoué');
+        updateSettings({ notifEnabled: true });
+      } catch (e) {
+        console.error('[push] subscribe failed', e);
+        setNotifStatus('⚠ Échec : ' + (e.message || 'inconnu'));
+        toggle.checked = false;
+      }
+    } else {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+      await pushSubscriptionToGist(null);
+      setNotifStatus('Désactivées');
+      updateSettings({ notifEnabled: false });
+    }
+  });
+}
+
+/* =====================================================
+   Dark mode — suit prefers-color-scheme, met à jour theme-color
+   ===================================================== */
+function initTheme() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const apply = () => {
+    meta.setAttribute('content', mq.matches ? '#000000' : '#f2f2f7');
+  };
+  apply();
+  if (mq.addEventListener) mq.addEventListener('change', apply);
+  else if (mq.addListener) mq.addListener(apply); // Safari <14
+}
+
 async function initNotes() {
   const ta = document.querySelector('[data-notes-input]');
   if (!ta) return;
@@ -1286,6 +1326,7 @@ async function initNotes() {
    ===================================================== */
 function boot() {
   getSettings(); // ensures initialization
+  ensureSchema();
   initTabs();
   renderHeader();
   renderZeigarnikRecall();
@@ -1293,21 +1334,19 @@ function boot() {
   bindPriorityHandlers();
   renderSwitchCounter();
   bindSwitchCounter();
-  refreshRitual();
-  renderRitualInputs();
-  bindRitual();
-  bindRitualInputs();
   bindTimer();
   bindCloseModal();
-  renderProgramme();
   renderSettings();
   bindSettings();
   initInbox();
   initNotes();
+  initDaysBackup();
+  initPushNotifications();
   bindAICheckHandlers();
   bindZeigarnikEvaluator();
   renderDebugViewer();
   toggleAIElements();
+  initTheme();
 }
 
 if (document.readyState === 'loading') {

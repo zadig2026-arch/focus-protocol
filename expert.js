@@ -111,12 +111,7 @@ function daysAgoISO(n, base = new Date()) {
   return new Date(d.getTime() - tz).toISOString().slice(0, 10);
 }
 
-function srhiAvg(scores) {
-  if (!scores?.length) return null;
-  return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
-}
-
-export function build7DContext({ days, ritualLog, settings, program }) {
+export function build7DContext({ days, settings }) {
   const today = new Date();
   const isoDates = [];
   for (let i = 6; i >= 0; i--) isoDates.push(daysAgoISO(i, today));
@@ -129,29 +124,18 @@ export function build7DContext({ days, ritualLog, settings, program }) {
     const switches = (d.taskSwitches || []).length;
     const zNote = d.zeigarnikNote?.text || '';
     const zQuality = d.zeigarnikNote?.quality || null;
-    const srhi = d.srhiScores?.['3tasks'] ? srhiAvg(d.srhiScores['3tasks']) : null;
     return {
       iso,
       completion: total ? `${done}/${total}` : '0/0',
       switches,
       zeigarnik: zNote ? `"${zNote.slice(0, 80)}"` : null,
       zQuality,
-      srhi,
     };
   });
-
-  const ritualByDate = Object.fromEntries((ritualLog || []).map(e => [e.date, e.count]));
-  const ritualThisWeek = isoDates.map(iso => ritualByDate[iso] || 0);
-  const ritualUsesTotal = ritualThisWeek.reduce((a, b) => a + b, 0);
-  const ritualStreakActive = ritualThisWeek[ritualThisWeek.length - 1] > 0 || ritualThisWeek[ritualThisWeek.length - 2] > 0;
-
-  const activeHabits = program?.activeHabits || ['3tasks'];
-  const currentPhase = program?.currentPhase || 1;
 
   const lines = [
     `# Contexte utilisateur (7 derniers jours)`,
     ``,
-    `Phase programme : ${currentPhase}. Habitudes actives : ${activeHabits.join(', ')}.`,
     `Style brief : ${settings?.briefStyle || 'entrepreneur'}.`,
     ``,
     `## Journal par jour (du plus ancien au plus récent)`,
@@ -163,16 +147,9 @@ export function build7DContext({ days, ritualLog, settings, program }) {
       return;
     }
     const parts = [`complétion ${r.completion}`, `switches ${r.switches}`];
-    if (r.srhi !== null) parts.push(`SRHI ${r.srhi}/7`);
     if (r.zeigarnik) parts.push(`Zeigarnik ${r.zQuality || '?'} : ${r.zeigarnik}`);
     lines.push(`- ${r.iso} : ${parts.join(' · ')}`);
   });
-
-  lines.push(``, `## Rituel d'ancrage`);
-  lines.push(`Utilisations sur 7j : ${ritualUsesTotal} (pattern : ${ritualThisWeek.join('-')})`);
-  lines.push(`Streak actif : ${ritualStreakActive ? 'oui' : 'non'}`);
-
-  if (settings?.anchor) lines.push(``, `Ancrage configuré : « ${settings.anchor} » → état « ${settings.mentalState || '?'} »`);
 
   return lines.join('\n');
 }

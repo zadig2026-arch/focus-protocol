@@ -1,0 +1,4 @@
+{
+  "publicKey": "",
+  "comment": "Colle ici la VAPID_PUBLIC_KEY générée par cloud-scanner/generate-vapid.py. Ce fichier est public — pas de secret dedans. Tant que publicKey est vide, le toggle Notifications restera désactivé."
+}

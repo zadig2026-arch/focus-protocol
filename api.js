@@ -8,8 +8,6 @@ import { EXPERT_SYSTEM_PROMPT, build7DContext } from './expert.js';
 import {
   getSettings,
   getAllDays,
-  getRitualLog,
-  getProgram,
 } from './storage.js';
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -29,9 +27,7 @@ function buildCurrentContext() {
 
   cachedContext = build7DContext({
     days: getAllDays(),
-    ritualLog: getRitualLog(),
     settings: getSettings(),
-    program: getProgram(),
   });
   cachedContextDate = today;
   return cachedContext;
@@ -158,13 +154,23 @@ export async function checkSmallestAction(task, smallestAction) {
 }
 
 /* =====================================================
-   Hook 4.4 — Diagnostic hebdomadaire 5 techniques (Sonnet)
+   Hook 4.4 — Rétro hebdomadaire narrative (Sonnet)
+   Analyse les 7 jours de données (tâches, switches, zeigarnik)
+   et renvoie un feedback + une priorité pour la semaine à venir.
    ===================================================== */
 export async function weeklyDiagnostic() {
   const { text } = await callClaude({
     model: MODELS.SONNET,
-    userMessage: `Note ma semaine écoulée de 0 à 10 sur chacune des 5 techniques. Pour chaque score, cite 1 observation spécifique tirée de mon contexte 7j. Termine par 1 action corrective pour la semaine à venir. Réponds en JSON strict : {"3tasks":{"score":n,"observation":"..."},"zeigarnik":{"score":n,"observation":"..."},"ritual":{"score":n,"observation":"..."},"smallestAction":{"score":n,"observation":"..."},"batching":{"score":n,"observation":"..."},"nextWeekAction":"..."}`,
-    maxTokens: 1000,
+    userMessage: `Fais une rétro de ma semaine écoulée en t'appuyant strictement sur les 7 jours de données fournis (complétion des 3 tâches, task switches, notes Zeigarnik).
+
+Réponds en JSON strict, en français, ton direct tutoyant :
+{
+  "wins": "1-2 phrases sur ce qui a bien marché cette semaine, avec une observation spécifique",
+  "frictions": "1-2 phrases sur ce qui a bloqué ou créé de la friction, avec une observation spécifique",
+  "patternObservation": "1 pattern notable que tu remarques (ex: moins de switches le matin, tâches impact souvent reportées, zeigarnik plus précise en fin de semaine…)",
+  "nextWeekPriority": "1 priorité claire et actionnable pour la semaine à venir, pas une généralité"
+}`,
+    maxTokens: 800,
     temperature: 0.3,
   });
   return parseJsonStrict(text);
