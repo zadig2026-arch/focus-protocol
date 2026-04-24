@@ -259,13 +259,17 @@ def fetch_notes() -> str:
 
 
 # --------------------------------------------------------------------- CLAUDE
-def call_claude(sources: dict, notes: str = '') -> dict:
+def call_claude(sources: dict, notes: str = '', memory: dict | None = None) -> dict:
     context = json.dumps(sources, ensure_ascii=False, indent=2)
     notes_block = (
         f'\n\nNOTES DE CONTEXTE (écrites par l\'utilisateur, prends-les en compte pour prioriser) :\n"""\n{notes}\n"""\n'
         if notes else ''
     )
-    user_msg = f"""Voici le contexte de scan du {datetime.now(timezone.utc).isoformat()} :{notes_block}
+    memory_block = ''
+    if memory and any(memory.get(k) for k in ('people', 'projects', 'commitments')):
+        mem_str = json.dumps(memory, ensure_ascii=False, indent=2)[:6000]
+        memory_block = f'\n\nMÉMOIRE LONGUE (clients, projets, engagements connus — utilise-la pour mieux prioriser) :\n```json\n{mem_str}\n```\n'
+    user_msg = f"""Voici le contexte de scan du {datetime.now(timezone.utc).isoformat()} :{notes_block}{memory_block}
 
 ```json
 {context}
@@ -331,6 +335,134 @@ def push_gist(payload: dict) -> str:
     )
     r.raise_for_status()
     return r.json().get('html_url', '')
+
+
+# --------------------------------------------------------------------- LONG-TERM MEMORY
+EMPTY_MEMORY = {
+    'schemaVersion': 1,
+    'updatedAt': None,
+    'people': {},
+    'projects': {},
+    'commitments': [],
+    'themes': [],
+}
+
+
+def fetch_memory() -> dict:
+    """Lit memory.json du Gist. Retourne EMPTY_MEMORY si absent ou invalide."""
+    try:
+        r = requests.get(
+            f'https://api.github.com/gists/{GIST_ID}',
+            headers=_gh_headers(), timeout=20,
+        )
+        r.raise_for_status()
+        raw = r.json().get('files', {}).get('memory.json') or {}
+        if not raw.get('content'):
+            return dict(EMPTY_MEMORY)
+        data = json.loads(raw['content'])
+        # Validation souple
+        for k in ('people', 'projects'):
+            if not isinstance(data.get(k), dict):
+                data[k] = {}
+        for k in ('commitments', 'themes'):
+            if not isinstance(data.get(k), list):
+                data[k] = []
+        data.setdefault('schemaVersion', 1)
+        return data
+    except Exception as e:
+        print(f'Warn: fetch memory failed: {e}', file=sys.stderr)
+        return dict(EMPTY_MEMORY)
+
+
+def push_memory(memory: dict) -> None:
+    memory['updatedAt'] = datetime.now(timezone.utc).isoformat()
+    content = json.dumps(memory, ensure_ascii=False, indent=2)
+    r = requests.patch(
+        f'https://api.github.com/gists/{GIST_ID}',
+        headers=_gh_headers(),
+        json={'files': {'memory.json': {'content': content}}},
+        timeout=30,
+    )
+    r.raise_for_status()
+
+
+def update_memory(sources: dict, notes: str, current: dict) -> dict:
+    """
+    Deuxième appel Claude matinal : met à jour la mémoire longue à partir
+    des signaux du jour + des notes. Ne retire rien ; ajoute/précise.
+    Retourne la mémoire mise à jour.
+    """
+    current_str = json.dumps(current, ensure_ascii=False, indent=2)[:8000]
+    sources_str = json.dumps(sources, ensure_ascii=False, indent=2)[:8000]
+    notes_block = f'\n\nNOTES UTILISATEUR :\n"""\n{notes}\n"""\n' if notes else ''
+    user_msg = f"""Voici la mémoire longue actuelle et les signaux du scan d'aujourd'hui.
+Ton rôle : extraire de nouvelles entités (personnes, projets, engagements) et enrichir celles déjà présentes, SANS inventer.
+
+Règles strictes :
+- N'ajoute une personne/projet que si explicitement nommée dans les sources ou les notes
+- Pour chaque ajout/modification, cite la source entre parenthèses dans le champ "context" ou "notes"
+- Ne retire jamais d'entité existante (on préfère qu'elles vieillissent plutôt qu'elles disparaissent)
+- Marque un commitment "resolved": true uniquement si un signal clair l'atteste
+- Date en ISO (YYYY-MM-DD) pour deadlines et lastInteraction
+- Français, concis
+
+Mémoire actuelle :
+```json
+{current_str}
+```
+
+Signaux du jour (gmail 2j, calendar 48h, github 3j) :
+```json
+{sources_str}
+```{notes_block}
+
+Réponds UNIQUEMENT par la mémoire complète mise à jour, en JSON strict, même schéma :
+{{
+  "schemaVersion": 1,
+  "updatedAt": "ISO",
+  "people": {{"Nom": {{"role": "...", "context": "... (source)", "lastInteraction": "YYYY-MM-DD", "notes": ["..."]}}}},
+  "projects": {{"Nom": {{"status": "active|paused|done", "context": "... (source)", "deadline": "YYYY-MM-DD|null", "nextSteps": ["..."]}}}},
+  "commitments": [{{"to": "...", "what": "...", "deadline": "YYYY-MM-DD|null", "source": "...", "addedAt": "YYYY-MM-DD", "resolved": false}}],
+  "themes": ["..."]
+}}"""
+
+    r = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        },
+        json={
+            'model': 'claude-sonnet-4-6',
+            'system': 'Tu es un curateur de mémoire longue. Tu extrais des entités stables des signaux bruts sans inventer. Tu retournes du JSON strict.',
+            'messages': [{'role': 'user', 'content': user_msg}],
+            'max_tokens': 2500,
+            'temperature': 0.2,
+        },
+        timeout=90,
+    )
+    if not r.ok:
+        print(f'Memory update failed {r.status_code}: {r.text[:400]}', file=sys.stderr)
+        return current
+    text = r.json()['content'][0]['text']
+    m = re.search(r'\{[\s\S]*\}', text)
+    if not m:
+        print(f'Warn: no JSON in memory response: {text[:200]}', file=sys.stderr)
+        return current
+    try:
+        updated = json.loads(m.group(0))
+        for k in ('people', 'projects'):
+            if not isinstance(updated.get(k), dict):
+                updated[k] = current.get(k, {})
+        for k in ('commitments', 'themes'):
+            if not isinstance(updated.get(k), list):
+                updated[k] = current.get(k, [])
+        updated['schemaVersion'] = 1
+        return updated
+    except json.JSONDecodeError as e:
+        print(f'Warn: memory JSON invalid: {e}', file=sys.stderr)
+        return current
 
 
 # --------------------------------------------------------------------- WEB PUSH
@@ -401,8 +533,22 @@ def run_scan() -> int:
     notes = fetch_notes()
     print(f'   {len(notes)} chars' if notes else '   (empty)')
 
-    print('→ Calling Claude…')
-    result = call_claude(sources, notes=notes)
+    print('→ Fetching long-term memory…')
+    memory = fetch_memory()
+    known = len(memory.get('people', {})) + len(memory.get('projects', {})) + len(memory.get('commitments', []))
+    print(f'   {known} entities')
+
+    print('→ Updating long-term memory (Claude)…')
+    try:
+        memory = update_memory(sources, notes, memory)
+        push_memory(memory)
+        new_known = len(memory.get('people', {})) + len(memory.get('projects', {})) + len(memory.get('commitments', []))
+        print(f'   {new_known} entities ({new_known - known:+d})')
+    except Exception as e:
+        print(f'   ! update skipped: {e}', file=sys.stderr)
+
+    print('→ Calling Claude for today suggestions…')
+    result = call_claude(sources, notes=notes, memory=memory)
 
     scanned = ['gmail', 'calendar', 'github']
     skipped = ['git-local', 'claude-code-sessions']

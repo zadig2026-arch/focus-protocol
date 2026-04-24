@@ -8,6 +8,7 @@ import { EXPERT_SYSTEM_PROMPT, build7DContext } from './expert.js';
 import {
   getSettings,
   getAllDays,
+  getMemoryCache,
 } from './storage.js';
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -28,6 +29,7 @@ function buildCurrentContext() {
   cachedContext = build7DContext({
     days: getAllDays(),
     settings: getSettings(),
+    memory: getMemoryCache(),
   });
   cachedContextDate = today;
   return cachedContext;

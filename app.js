@@ -14,6 +14,8 @@ import {
   getAllDays,
   replaceAllDays,
   ensureSchema,
+  getMemoryCache,
+  setMemoryCache,
   exportAll,
   importAll,
   resetAll,
@@ -1169,6 +1171,250 @@ function initDaysBackup() {
 }
 
 /* =====================================================
+   Mémoire longue — fetch memory.json du Gist, cache local
+   Le scanner matinal est source de vérité, le PWA lit + cache.
+   ===================================================== */
+async function fetchMemoryFromGist() {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return null;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = data.files?.['memory.json']?.content;
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function refreshMemory() {
+  const remote = await fetchMemoryFromGist();
+  if (remote) {
+    setMemoryCache(remote);
+    renderMemoryViewer();
+    invalidateContextCache();
+  }
+}
+
+function initMemory() {
+  renderMemoryViewer();
+  refreshMemory();
+}
+
+/* =====================================================
+   Captures vocales — lues depuis capture-inbox.json du Gist
+   Chaque entrée : { id, timestamp, raw, kind, title, context }
+   ===================================================== */
+let captureCache = null;
+
+async function fetchCaptureInboxFromGist() {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return null;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = data.files?.['capture-inbox.json']?.content;
+    if (!raw) return { items: [] };
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.items)) parsed.items = [];
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function pushCaptureInboxToGist(inbox) {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return false;
+  try {
+    const payload = { items: inbox.items || [], updatedAt: new Date().toISOString() };
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ files: { 'capture-inbox.json': { content: JSON.stringify(payload, null, 2) } } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function kindLabel(k) {
+  return { task: 'TÂCHE', note: 'NOTE', idea: 'IDÉE', meeting: 'RDV' }[k] || (k || '?').toUpperCase();
+}
+
+function renderCaptureSection() {
+  const section = document.querySelector('[data-capture-section]');
+  const list = document.querySelector('[data-capture-list]');
+  const meta = document.querySelector('[data-capture-meta]');
+  if (!section || !list) return;
+
+  const items = (captureCache?.items || []).slice().sort((a, b) =>
+    (b.timestamp || '').localeCompare(a.timestamp || '')
+  );
+  if (!items.length) { section.hidden = true; return; }
+  section.hidden = false;
+  if (meta) meta.textContent = `${items.length} à trier`;
+
+  list.innerHTML = items.map(item => {
+    const id = escapeHtml(item.id);
+    const kind = item.kind || 'note';
+    const when = item.timestamp ? formatAgo(item.timestamp) : '';
+    const taskBtns = kind === 'task'
+      ? `<button class="capture-btn" data-capture-promote="${id}" data-slot="0">→ P1</button>
+         <button class="capture-btn" data-capture-promote="${id}" data-slot="1">→ P2</button>
+         <button class="capture-btn" data-capture-promote="${id}" data-slot="2">→ P3</button>`
+      : '';
+    return `<div class="capture-card">
+      <div class="capture-card-head">
+        <span class="capture-kind capture-kind-${escapeHtml(kind)}">${kindLabel(kind)}</span>
+        <span class="capture-time">${escapeHtml(when)}</span>
+      </div>
+      <div class="capture-card-title">${escapeHtml(item.title || item.raw || '—')}</div>
+      ${item.raw && item.raw !== item.title ? `<div class="capture-card-raw">« ${escapeHtml(item.raw)} »</div>` : ''}
+      <div class="capture-actions">
+        ${taskBtns}
+        <button class="capture-btn" data-capture-note="${id}">→ Notes</button>
+        <button class="capture-btn capture-btn-dismiss" data-capture-dismiss="${id}">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-capture-promote]').forEach(btn => {
+    btn.addEventListener('click', () => promoteCapture(btn.dataset.capturePromote, parseInt(btn.dataset.slot, 10)));
+  });
+  list.querySelectorAll('[data-capture-note]').forEach(btn => {
+    btn.addEventListener('click', () => captureToNote(btn.dataset.captureNote));
+  });
+  list.querySelectorAll('[data-capture-dismiss]').forEach(btn => {
+    btn.addEventListener('click', () => dismissCapture(btn.dataset.captureDismiss));
+  });
+}
+
+function findCapture(id) {
+  return (captureCache?.items || []).find(it => it.id === id);
+}
+
+async function removeCapture(id) {
+  if (!captureCache) return;
+  captureCache.items = captureCache.items.filter(it => it.id !== id);
+  await pushCaptureInboxToGist(captureCache);
+  renderCaptureSection();
+}
+
+async function promoteCapture(id, slot) {
+  const item = findCapture(id);
+  if (!item) return;
+  updatePriority(todayISO(), slot, {
+    title: (item.title || item.raw || '').slice(0, 120),
+    smallestAction: (item.context || '').slice(0, 80),
+  });
+  renderPriorities();
+  if (navigator.vibrate) navigator.vibrate([10, 20, 10]);
+  showToast(`Capture promue en priorité ${slot + 1}`);
+  await removeCapture(id);
+}
+
+async function captureToNote(id) {
+  const item = findCapture(id);
+  if (!item) return;
+  const line = `\n\n[${new Date(item.timestamp || Date.now()).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}] ${item.title || item.raw}`;
+  const ta = document.querySelector('[data-notes-input]');
+  if (ta) {
+    ta.value = (ta.value || '') + line;
+    writeLocalNotes(ta.value);
+    pushNotesToGist(ta.value);
+  } else {
+    // fallback: directement sur Gist
+    const { gistId, githubToken } = getSettings();
+    if (gistId && githubToken) {
+      const current = await fetchNotesFromGist();
+      await pushNotesToGist((current || '') + line);
+    }
+  }
+  showToast('Ajouté aux notes');
+  await removeCapture(id);
+}
+
+async function dismissCapture(id) {
+  await removeCapture(id);
+  showToast('Capture ignorée');
+}
+
+async function initCaptures() {
+  captureCache = await fetchCaptureInboxFromGist();
+  renderCaptureSection();
+}
+
+function renderMemoryViewer() {
+  const container = document.querySelector('[data-memory-content]');
+  if (!container) return;
+  const mem = getMemoryCache();
+  const people = Object.entries(mem?.people || {});
+  const projects = Object.entries(mem?.projects || {});
+  const commits = (mem?.commitments || []).filter(c => !c.resolved);
+  const themes = mem?.themes || [];
+  if (!people.length && !projects.length && !commits.length) {
+    container.innerHTML = `<div class="memory-empty">Encore vide. Le scanner matinal va la remplir au fil des jours à partir de tes mails, agenda, commits, notes.</div>`;
+    return;
+  }
+  const updatedAt = mem?.updatedAt ? `MAJ ${formatAgo(mem.updatedAt)}` : '';
+  container.innerHTML = `
+    ${updatedAt ? `<div class="memory-meta">${escapeHtml(updatedAt)}</div>` : ''}
+    ${people.length ? `<div class="memory-section">
+      <div class="memory-label">Personnes (${people.length})</div>
+      ${people.slice(0, 20).map(([name, p]) => `
+        <div class="memory-row">
+          <strong>${escapeHtml(name)}</strong> <span class="memory-tag">${escapeHtml(p.role || '?')}</span>
+          <p>${escapeHtml(p.context || '')}</p>
+        </div>
+      `).join('')}
+    </div>` : ''}
+    ${projects.length ? `<div class="memory-section">
+      <div class="memory-label">Projets (${projects.length})</div>
+      ${projects.slice(0, 15).map(([name, p]) => `
+        <div class="memory-row">
+          <strong>${escapeHtml(name)}</strong> <span class="memory-tag">${escapeHtml(p.status || '?')}</span>${p.deadline ? ` · <span class="memory-tag">${escapeHtml(p.deadline)}</span>` : ''}
+          <p>${escapeHtml(p.context || '')}</p>
+        </div>
+      `).join('')}
+    </div>` : ''}
+    ${commits.length ? `<div class="memory-section">
+      <div class="memory-label">Engagements ouverts (${commits.length})</div>
+      ${commits.slice(0, 15).map(c => `
+        <div class="memory-row">
+          <strong>→ ${escapeHtml(c.to || '?')}</strong>${c.deadline ? ` <span class="memory-tag">${escapeHtml(c.deadline)}</span>` : ''}
+          <p>${escapeHtml(c.what || '')}</p>
+        </div>
+      `).join('')}
+    </div>` : ''}
+    ${themes.length ? `<div class="memory-section">
+      <div class="memory-label">Thèmes</div>
+      <div class="memory-themes">${themes.slice(0, 12).map(t => `<span class="memory-chip">${escapeHtml(t)}</span>`).join('')}</div>
+    </div>` : ''}
+  `;
+}
+
+/* =====================================================
    Web Push — subscribe + upload abonnement au Gist
    Scanner (GHA cron) lit push-subscription.json et envoie des pushes.
    ===================================================== */
@@ -1341,6 +1587,8 @@ function boot() {
   initInbox();
   initNotes();
   initDaysBackup();
+  initMemory();
+  initCaptures();
   initPushNotifications();
   bindAICheckHandlers();
   bindZeigarnikEvaluator();

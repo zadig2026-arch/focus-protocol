@@ -118,6 +118,18 @@ export function replaceAllDays(nextDays) {
   emitDaysChanged();
 }
 
+/* =====================================================
+   Long-term memory (cache local, source de vérité = Gist)
+   ===================================================== */
+export function getMemoryCache() {
+  return read('memory', null);
+}
+
+export function setMemoryCache(memory) {
+  if (!memory) return;
+  write('memory', memory);
+}
+
 export function updatePriority(dateISO, index, patch) {
   const day = getDay(dateISO);
   day.priorities[index] = { ...day.priorities[index], ...patch };

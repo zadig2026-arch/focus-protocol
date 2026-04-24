@@ -111,7 +111,38 @@ function daysAgoISO(n, base = new Date()) {
   return new Date(d.getTime() - tz).toISOString().slice(0, 10);
 }
 
-export function build7DContext({ days, settings }) {
+function summarizeMemory(memory) {
+  if (!memory) return '';
+  const people = Object.entries(memory.people || {}).slice(0, 15);
+  const projects = Object.entries(memory.projects || {}).slice(0, 10);
+  const commitments = (memory.commitments || []).filter(c => !c.resolved).slice(0, 10);
+  const themes = memory.themes || [];
+  if (!people.length && !projects.length && !commitments.length) return '';
+
+  const lines = [`## Mémoire longue (connais ce contexte)`];
+  if (people.length) {
+    lines.push('Personnes :');
+    people.forEach(([name, p]) => lines.push(`- ${name} (${p.role || '?'}) : ${p.context || ''}`));
+  }
+  if (projects.length) {
+    lines.push('Projets :');
+    projects.forEach(([name, p]) => {
+      const deadline = p.deadline ? ` · deadline ${p.deadline}` : '';
+      lines.push(`- ${name} [${p.status || '?'}]${deadline} : ${p.context || ''}`);
+    });
+  }
+  if (commitments.length) {
+    lines.push('Engagements non tenus :');
+    commitments.forEach(c => {
+      const deadline = c.deadline ? ` (≤ ${c.deadline})` : '';
+      lines.push(`- à ${c.to || '?'} : ${c.what}${deadline}`);
+    });
+  }
+  if (themes.length) lines.push(`Thèmes récurrents : ${themes.slice(0, 6).join(', ')}`);
+  return lines.join('\n');
+}
+
+export function build7DContext({ days, settings, memory }) {
   const today = new Date();
   const isoDates = [];
   for (let i = 6; i >= 0; i--) isoDates.push(daysAgoISO(i, today));
@@ -133,13 +164,17 @@ export function build7DContext({ days, settings }) {
     };
   });
 
+  const memoryBlock = summarizeMemory(memory);
   const lines = [
     `# Contexte utilisateur (7 derniers jours)`,
     ``,
     `Style brief : ${settings?.briefStyle || 'entrepreneur'}.`,
     ``,
-    `## Journal par jour (du plus ancien au plus récent)`,
   ];
+  if (memoryBlock) {
+    lines.push(memoryBlock, '');
+  }
+  lines.push(`## Journal par jour (du plus ancien au plus récent)`);
 
   rows.forEach(r => {
     if (r.missing) {

@@ -50,6 +50,15 @@
         <button class="chip-ghost">Commencer par ça →</button>
       </article>
 
+      <!-- Captures vocales / notes rapides (Shortcut iOS) -->
+      <section class="capture-section" data-capture-section hidden>
+        <header class="capture-header">
+          <h3 class="capture-title">Captures</h3>
+          <span class="capture-meta" data-capture-meta>—</span>
+        </header>
+        <div class="capture-list" data-capture-list></div>
+      </section>
+
       <!-- Inbox IA — suggestions du scanner matinal -->
       <section class="inbox-section" data-inbox-section hidden>
         <header class="inbox-header">
@@ -240,7 +249,7 @@
       </div>
 
       <div class="settings-group">
-        <div class="settings-label">Shortcut iOS — note rapide</div>
+        <div class="settings-label">Shortcut iOS — capture rapide</div>
         <div class="settings-list">
           <button class="settings-row settings-row-btn" data-copy-shortcut-config>
             <span class="settings-row-label">Copier la config (JSON)</span>
@@ -248,30 +257,48 @@
           </button>
         </div>
         <details class="debug-details">
-          <summary class="debug-summary">Voir les 4 étapes pour créer le raccourci</summary>
+          <summary class="debug-summary">Version dictée + catégorisée par Claude (recommandé)</summary>
+          <div class="debug-content shortcut-steps">
+            <p>Ton idée est dictée, Claude la catégorise (<em>task / note / idea / meeting</em>) et elle apparaît dans la section <strong>Captures</strong> d'Aujourd'hui pour triage en 2 taps.</p>
+            <ol>
+              <li>App <strong>Raccourcis</strong> iOS → <strong>+</strong> Nouveau → nomme <em>Focus Capture</em></li>
+              <li><strong>Dicter le texte</strong> (langue : français, arrêt : pause)</li>
+              <li><strong>Obtenir le contenu de l'URL</strong> — <em>appel Claude</em>
+                <br>URL : <code>https://api.anthropic.com/v1/messages</code>
+                <br>Méthode : <code>POST</code>
+                <br>En-têtes : <code>x-api-key: [ta clé sk-ant-…]</code>, <code>anthropic-version: 2023-06-01</code>, <code>content-type: application/json</code>
+                <br>Corps (JSON) :
+                <br><code>{"model":"claude-haiku-4-5-20251001","max_tokens":200,"system":"Tu catégorises une note vocale. Types: task (action concrète avec verbe), note (info à stocker), idea (intuition à creuser), meeting (rdv/appel). Réponds en JSON strict: {\"kind\":\"task|note|idea|meeting\",\"title\":\"...&lt;60c\",\"context\":\"...&lt;80c\"}.","messages":[{"role":"user","content":"[Texte dicté]"}]}</code>
+              </li>
+              <li><strong>Obtenir la valeur du dictionnaire</strong> : <code>content.1.text</code></li>
+              <li><strong>Obtenir le contenu de l'URL</strong> — <em>lecture du Gist</em>
+                <br>URL : <code>https://api.github.com/gists/[gistId]</code>, Méthode : <code>GET</code>
+                <br>En-têtes : <code>Authorization: Bearer [token]</code>, <code>Accept: application/vnd.github+json</code>
+              </li>
+              <li><strong>Obtenir la valeur du dictionnaire</strong> : <code>files.capture-inbox.json.content</code> — si l'action échoue, utilise <code>{"items":[]}</code></li>
+              <li><strong>Texte JavaScript</strong> (action « Exécuter JavaScript sur page web » ou construction manuelle) : construire le JSON final :
+                <br><code>{"items":[...anciens items, {"id":"cap-[timestamp]","timestamp":"[now ISO]","raw":"[Texte dicté]",...parse Claude text...}]}</code>
+              </li>
+              <li><strong>Obtenir le contenu de l'URL</strong> — <em>écriture Gist</em>
+                <br>URL : idem, Méthode : <code>PATCH</code>
+                <br>+ en-tête <code>Content-Type: application/json</code>
+                <br>Corps : <code>{"files":{"capture-inbox.json":{"content":"[JSON final]"}}}</code>
+              </li>
+              <li><strong>Ajoute à l'écran d'accueil</strong> · déclenche via Siri <em>« Capture Focus »</em></li>
+            </ol>
+            <p><strong>Astuce :</strong> si le Shortcut semble lourd à construire, commence par la version simple ci-dessous (sans Claude, append direct à notes.md). Le scanner matinal lira les notes et les intègrera à la mémoire longue.</p>
+          </div>
+        </details>
+        <details class="debug-details">
+          <summary class="debug-summary">Version simple (dictée → notes.md, sans catégorisation)</summary>
           <div class="debug-content shortcut-steps">
             <ol>
-              <li>App <strong>Raccourcis</strong> iOS → <strong>+</strong> Nouveau → nomme <em>Focus Note</em></li>
-              <li>Ajoute ces actions dans l'ordre :
-                <ul>
-                  <li><strong>Demander une entrée</strong> (texte, invite : « Quelle note ? »)</li>
-                  <li><strong>Obtenir le contenu de l'URL</strong>
-                    <br>URL : <code>https://api.github.com/gists/[gistId]</code>
-                    <br>Méthode : <code>GET</code>
-                    <br>En-tête <code>Authorization</code> : <code>Bearer [token]</code>
-                    <br>En-tête <code>Accept</code> : <code>application/vnd.github+json</code>
-                  </li>
-                  <li><strong>Obtenir la valeur du dictionnaire</strong> : <code>files.notes.md.content</code></li>
-                  <li><strong>Texte</strong> : <code>[Valeur du dictionnaire]</code> saut de ligne <code>— [Entrée demandée]</code></li>
-                  <li><strong>Obtenir le contenu de l'URL</strong> (appel PATCH)
-                    <br>URL : idem, Méthode : <code>PATCH</code>
-                    <br>+ en-tête <code>Content-Type</code> : <code>application/json</code>
-                    <br>Corps (JSON) : <code>{"files":{"notes.md":{"content":"[Texte]"}}}</code>
-                  </li>
-                </ul>
-              </li>
-              <li>Ajoute le raccourci à l'<strong>écran d'accueil</strong> (icône + titre)</li>
-              <li>Lance depuis l'icône ou via Siri <em>« Note Focus »</em></li>
+              <li><strong>Dicter le texte</strong> (ou <strong>Demander une entrée</strong>)</li>
+              <li><strong>Obtenir le contenu de l'URL</strong> — GET <code>https://api.github.com/gists/[gistId]</code> avec <code>Authorization: Bearer [token]</code></li>
+              <li><strong>Obtenir la valeur du dictionnaire</strong> : <code>files.notes.md.content</code></li>
+              <li><strong>Texte</strong> : <code>[Valeur] \n\n— [Texte dicté]</code></li>
+              <li><strong>Obtenir le contenu de l'URL</strong> — PATCH mêmes headers + <code>Content-Type: application/json</code>, corps <code>{"files":{"notes.md":{"content":"[Texte]"}}}</code></li>
+              <li>Ajoute à l'écran d'accueil</li>
             </ol>
           </div>
         </details>
@@ -309,6 +336,14 @@
       <div class="settings-group">
         <div class="settings-label">Semaine passée</div>
         <div class="history-list" data-history-list></div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Mémoire longue</div>
+        <div class="memory-viewer" data-memory-content>
+          <div class="memory-empty">Encore vide. Le scanner matinal va la remplir au fil des jours à partir de tes mails, agenda, commits, notes.</div>
+        </div>
+        <div class="settings-hint">Clients, projets, engagements : extraits chaque matin par Claude à partir de tes sources. Injecté dans chaque appel IA. Lecture seule ici — édite <code>memory.json</code> directement dans le Gist si besoin.</div>
       </div>
 
       <div class="settings-group">
