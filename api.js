@@ -52,17 +52,22 @@ export async function callClaude({
   userMessage,
   maxTokens = 300,
   temperature = 0.3,
+  systemOverride = null,
 }) {
   const settings = getSettings();
   const apiKey = settings.apiKey;
   if (!apiKey) throw new ApiError('no_key', 'Aucune clé API configurée');
 
+  const system = systemOverride
+    ? [{ type: 'text', text: systemOverride }]
+    : [
+        { type: 'text', text: EXPERT_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: buildCurrentContext(),   cache_control: { type: 'ephemeral' } },
+      ];
+
   const payload = {
     model,
-    system: [
-      { type: 'text', text: EXPERT_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: buildCurrentContext(),   cache_control: { type: 'ephemeral' } },
-    ],
+    system,
     messages: [{ role: 'user', content: userMessage }],
     max_tokens: maxTokens,
     temperature,
@@ -176,6 +181,34 @@ Réponds en JSON strict, en français, ton direct tutoyant :
     temperature: 0.3,
   });
   return parseJsonStrict(text);
+}
+
+/* =====================================================
+   Ask Claude sur tes notes + mémoire + 7j
+   Pas de JSON forcé : réponse texte concise en français tutoiement.
+   ===================================================== */
+export async function askNotes(question, { pinned = '', timeline = '', memorySummary = '' } = {}) {
+  const pinnedBlock = pinned ? `## Contexte permanent (notes épinglées)\n${pinned}\n` : '';
+  const timelineBlock = timeline ? `## Timeline récente (entrées datées)\n${timeline}\n` : '';
+  const memoryBlock = memorySummary ? `${memorySummary}\n` : '';
+  const hasAny = pinned || timeline || memorySummary;
+  const contextBlock = hasAny
+    ? `Voici mes notes et ma mémoire :\n\n${pinnedBlock}${timelineBlock}${memoryBlock}`
+    : `(Aucune note pour l'instant — réponds à la meilleure de ta capacité.)`;
+
+  const { text } = await callClaude({
+    model: MODELS.SONNET,
+    systemOverride: `Tu es un assistant qui répond aux questions de l'utilisateur sur SES PROPRES notes, sa mémoire longue, et ses 7 derniers jours de travail. Règles :
+- Français, tutoiement, concis (3-6 phrases max sauf si la question demande plus)
+- Cite les notes quand pertinent, entre guillemets courts
+- Si tu ne sais pas ou que l'info n'est pas dans les sources, dis-le franchement
+- Pas de moralisme, pas de conseils génériques ; réponds à la question posée
+- Format markdown léger si utile (listes, gras) mais pas de gros blocs`,
+    userMessage: `${contextBlock}\n\n## Ma question\n${question}`,
+    maxTokens: 700,
+    temperature: 0.4,
+  });
+  return text.trim();
 }
 
 /* =====================================================

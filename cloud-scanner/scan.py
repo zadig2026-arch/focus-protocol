@@ -244,15 +244,37 @@ Regrouper les tâches partageant un contexte commun (outil, interlocuteur, espac
 
 # --------------------------------------------------------------------- NOTES
 def fetch_notes() -> str:
-    """Fetch user-written notes.md from the Gist. Returns empty string if absent or empty."""
+    """
+    Fetch pinned notes.md + notes-timeline.md from the Gist.
+    Retourne un bloc markdown concaténé : contexte permanent + 14 dernières entrées timeline.
+    """
     try:
         r = requests.get(
             f'https://api.github.com/gists/{GIST_ID}',
             headers=_gh_headers(), timeout=20,
         )
         r.raise_for_status()
-        note = r.json().get('files', {}).get('notes.md') or {}
-        return (note.get('content') or '').strip()
+        files = r.json().get('files', {})
+        pinned = (files.get('notes.md', {}).get('content') or '').strip()
+        timeline_raw = (files.get('notes-timeline.md', {}).get('content') or '').strip()
+
+        parts = []
+        if pinned:
+            parts.append(f'## Contexte permanent\n{pinned}')
+        if timeline_raw:
+            # Garde les 14 entrées les plus récentes (les headers sont "## YYYY-MM-DD HH:MM")
+            entries = re.split(r'(?m)^##\s+(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)\s*$', timeline_raw)
+            # split produit [preamble, date1, body1, date2, body2, ...]
+            pairs = []
+            for i in range(1, len(entries), 2):
+                if i + 1 < len(entries):
+                    pairs.append((entries[i], entries[i + 1].strip()))
+            pairs.sort(key=lambda p: p[0], reverse=True)
+            pairs = pairs[:14]
+            if pairs:
+                tl_md = '\n\n'.join(f'### {d}\n{b}' for d, b in pairs)
+                parts.append(f'## Timeline récente\n{tl_md}')
+        return '\n\n'.join(parts).strip()
     except Exception as e:
         print(f'Warn: fetch notes failed: {e}', file=sys.stderr)
         return ''

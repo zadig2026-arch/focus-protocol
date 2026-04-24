@@ -196,11 +196,51 @@
         <div class="date-line">Notes de contexte</div>
         <div class="phase-line"><span class="phase-day">Pour le scanner IA</span></div>
       </header>
-      <div class="notes-hint">
-        Écris ici ce que le scanner doit savoir sur ta semaine : priorités business, deadlines externes, contexte stratégique. Claude les relit à chaque scan (6:30 UTC) et ajuste la priorisation. Sync auto vers le Gist privé.
+
+      <div class="notes-block">
+        <div class="notes-block-header">
+          <h3 class="notes-block-title">Contexte permanent</h3>
+          <span class="notes-block-hint">Ever-green — ton business, tes objectifs long terme</span>
+        </div>
+        <textarea class="notes-textarea" data-notes-input placeholder="Ex : Raglan Digital — agence dev full-stack solo à Auckland. Focus 2026 : 3 clients récurrents min, pas de mission court-terme en dessous de 5k€. Modèle : retainer + strategic advisory."></textarea>
+        <div class="notes-status" data-notes-status>—</div>
       </div>
-      <textarea class="notes-textarea" data-notes-input placeholder="Exemple : Je suis en prospection intense cette semaine — Raglan Digital a besoin de 2 RDV d'ici vendredi. Priorise outreach et commercial."></textarea>
-      <div class="notes-status" data-notes-status>—</div>
+
+      <div class="notes-block">
+        <div class="notes-block-header">
+          <h3 class="notes-block-title">Timeline</h3>
+          <span class="notes-block-hint">Entrées datées, s'accumulent. Utile pour Claude qui voit l'évolution.</span>
+        </div>
+        <button class="btn-timeline-add" data-timeline-add>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Ajouter une entrée
+        </button>
+        <div class="timeline-compose" data-timeline-compose hidden>
+          <textarea class="timeline-input" data-timeline-input placeholder="Quoi de neuf, quoi à garder en tête pour les prochains jours ?"></textarea>
+          <div class="timeline-compose-actions">
+            <button class="btn-ghost-sm" data-timeline-cancel>Annuler</button>
+            <button class="btn-primary-soft" data-timeline-save>Ajouter</button>
+          </div>
+        </div>
+        <div class="timeline-list" data-timeline-list>
+          <div class="timeline-empty">Pas encore d'entrées. Ajoute-en une quand tu veux marquer un contexte du moment (client en crunch, semaine off, hypothèse en test…).</div>
+        </div>
+      </div>
+
+      <div class="notes-block">
+        <div class="notes-block-header">
+          <h3 class="notes-block-title">Ask Claude</h3>
+          <span class="notes-block-hint">Pose une question sur tes notes + mémoire + 7 derniers jours. Ex : « qu'est-ce que j'ai dit sur Paul ? », « résume mes 3 dernières semaines », « qu'est-ce que j'ai arrêté de faire ? ».</span>
+        </div>
+        <div class="ask-answer" data-ask-answer hidden></div>
+        <div class="ask-compose">
+          <textarea class="ask-input" data-ask-input rows="2" placeholder="Pose ta question…"></textarea>
+          <button class="btn-ask" data-ask-submit>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+          </button>
+        </div>
+        <div class="ask-status" data-ask-status></div>
+      </div>
     </section>
 
     <!-- ===================== RÉGLAGES ===================== -->

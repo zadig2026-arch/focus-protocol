@@ -28,6 +28,7 @@ import {
   checkSmallestAction,
   evaluateZeigarnik,
   weeklyDiagnostic,
+  askNotes,
   getDebugPayload,
   invalidateContextCache,
   ApiError,
@@ -1090,6 +1091,258 @@ async function pushNotesToGist(text) {
 }
 
 /* =====================================================
+   Timeline des notes — notes-timeline.md sur Gist
+   Format : blocs séparés par "## YYYY-MM-DD HH:MM\n\n<corps>\n\n"
+   ===================================================== */
+let timelineCache = [];
+
+function parseTimeline(md) {
+  if (!md || !md.trim()) return [];
+  const entries = [];
+  const lines = md.split('\n');
+  let current = null;
+  const headerRe = /^##\s+(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)\s*$/;
+  for (const line of lines) {
+    const m = line.match(headerRe);
+    if (m) {
+      if (current) entries.push(current);
+      current = { date: m[1], body: '' };
+    } else if (current) {
+      current.body += (current.body ? '\n' : '') + line;
+    }
+  }
+  if (current) entries.push(current);
+  return entries.map(e => ({ date: e.date, body: e.body.trim() })).filter(e => e.body);
+}
+
+function serializeTimeline(entries) {
+  // Le plus récent d'abord dans le fichier aussi
+  return entries
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map(e => `## ${e.date}\n\n${e.body}`)
+    .join('\n\n');
+}
+
+async function fetchTimelineFromGist() {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return [];
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const raw = data.files?.['notes-timeline.md']?.content || '';
+    return parseTimeline(raw);
+  } catch {
+    return [];
+  }
+}
+
+async function pushTimelineToGist(entries) {
+  const { gistId, githubToken } = getSettings();
+  if (!gistId || !githubToken) return false;
+  try {
+    const md = serializeTimeline(entries);
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ files: { 'notes-timeline.md': { content: md || ' ' } } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function formatTimelineDate(d) {
+  // "2026-04-24 14:30" → "mer. 24 avr · 14:30"
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?$/);
+  if (!m) return d;
+  const date = new Date(+m[1], +m[2] - 1, +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0);
+  const day = date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = m[4] ? ` · ${m[4]}:${m[5]}` : '';
+  return `${day}${time}`;
+}
+
+function renderTimeline() {
+  const list = document.querySelector('[data-timeline-list]');
+  if (!list) return;
+  if (!timelineCache.length) {
+    list.innerHTML = `<div class="timeline-empty">Pas encore d'entrées. Ajoute-en une quand tu veux marquer un contexte du moment (client en crunch, semaine off, hypothèse en test…).</div>`;
+    return;
+  }
+  // Plus récent en haut
+  const sorted = timelineCache.slice().sort((a, b) => b.date.localeCompare(a.date));
+  list.innerHTML = sorted.map(e => `
+    <div class="timeline-entry">
+      <div class="timeline-entry-head">
+        <span class="timeline-entry-date">${escapeHtml(formatTimelineDate(e.date))}</span>
+        <button class="timeline-entry-delete" data-timeline-delete="${escapeHtml(e.date)}" title="Supprimer">✕</button>
+      </div>
+      <div class="timeline-entry-body">${escapeHtml(e.body)}</div>
+    </div>
+  `).join('');
+  list.querySelectorAll('[data-timeline-delete]').forEach(btn => {
+    btn.addEventListener('click', () => deleteTimelineEntry(btn.dataset.timelineDelete));
+  });
+}
+
+function currentTimelineStamp() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+async function addTimelineEntry(body) {
+  const text = (body || '').trim();
+  if (!text) return;
+  const entry = { date: currentTimelineStamp(), body: text };
+  timelineCache.push(entry);
+  renderTimeline();
+  await pushTimelineToGist(timelineCache);
+  if (navigator.vibrate) navigator.vibrate([10, 15]);
+  showToast('Entrée ajoutée');
+}
+
+async function deleteTimelineEntry(date) {
+  if (!confirm('Supprimer cette entrée ?')) return;
+  timelineCache = timelineCache.filter(e => e.date !== date);
+  renderTimeline();
+  await pushTimelineToGist(timelineCache);
+}
+
+function bindTimelineUI() {
+  const addBtn = document.querySelector('[data-timeline-add]');
+  const compose = document.querySelector('[data-timeline-compose]');
+  const input = document.querySelector('[data-timeline-input]');
+  const cancel = document.querySelector('[data-timeline-cancel]');
+  const save = document.querySelector('[data-timeline-save]');
+  if (!addBtn || !compose || !input) return;
+
+  addBtn.addEventListener('click', () => {
+    compose.hidden = false;
+    addBtn.hidden = true;
+    setTimeout(() => input.focus(), 50);
+  });
+  cancel?.addEventListener('click', () => {
+    compose.hidden = true;
+    addBtn.hidden = false;
+    input.value = '';
+  });
+  save?.addEventListener('click', async () => {
+    const val = input.value.trim();
+    if (!val) return;
+    save.disabled = true;
+    await addTimelineEntry(val);
+    input.value = '';
+    compose.hidden = true;
+    addBtn.hidden = false;
+    save.disabled = false;
+  });
+}
+
+async function initTimeline() {
+  bindTimelineUI();
+  timelineCache = await fetchTimelineFromGist();
+  renderTimeline();
+}
+
+/* =====================================================
+   Ask Claude — interroger Claude sur pinned + timeline + mémoire
+   ===================================================== */
+function setAskStatus(msg) {
+  const el = document.querySelector('[data-ask-status]');
+  if (el) el.textContent = msg || '';
+}
+
+function summarizeMemoryForAsk(memory) {
+  if (!memory) return '';
+  const people = Object.entries(memory.people || {});
+  const projects = Object.entries(memory.projects || {});
+  const commits = (memory.commitments || []).filter(c => !c.resolved);
+  if (!people.length && !projects.length && !commits.length) return '';
+  const lines = ['## Mémoire longue'];
+  if (people.length) {
+    lines.push('Personnes :');
+    people.slice(0, 20).forEach(([n, p]) => lines.push(`- ${n} (${p.role || '?'}) : ${p.context || ''}`));
+  }
+  if (projects.length) {
+    lines.push('Projets :');
+    projects.slice(0, 15).forEach(([n, p]) => lines.push(`- ${n} [${p.status || '?'}]${p.deadline ? ` · deadline ${p.deadline}` : ''} : ${p.context || ''}`));
+  }
+  if (commits.length) {
+    lines.push('Engagements non tenus :');
+    commits.slice(0, 15).forEach(c => lines.push(`- à ${c.to || '?'} : ${c.what}${c.deadline ? ` (≤ ${c.deadline})` : ''}`));
+  }
+  return lines.join('\n');
+}
+
+function timelineToMarkdown(entries) {
+  return entries
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 20)
+    .map(e => `### ${e.date}\n${e.body}`)
+    .join('\n\n');
+}
+
+async function runAskNotes() {
+  const input = document.querySelector('[data-ask-input]');
+  const btn = document.querySelector('[data-ask-submit]');
+  const answer = document.querySelector('[data-ask-answer]');
+  if (!input || !btn || !answer) return;
+  const question = input.value.trim();
+  if (!question) return;
+
+  if (!hasApiKey()) {
+    setAskStatus('Ajoute ta clé API Anthropic dans Réglages pour utiliser Ask Claude.');
+    return;
+  }
+
+  btn.disabled = true;
+  setAskStatus('Claude réfléchit…');
+  answer.hidden = true;
+
+  try {
+    const pinned = readLocalNotes() || '';
+    const timelineMd = timelineToMarkdown(timelineCache);
+    const memorySummary = summarizeMemoryForAsk(getMemoryCache());
+    const text = await askNotes(question, { pinned, timeline: timelineMd, memorySummary });
+    answer.innerHTML = `<div class="ask-answer-q">${escapeHtml(question)}</div>${escapeHtml(text).replace(/\n/g, '<br>')}`;
+    answer.hidden = false;
+    setAskStatus('');
+    input.value = '';
+  } catch (e) {
+    setAskStatus('⚠ ' + (e.message || 'Erreur'));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function bindAskNotes() {
+  const input = document.querySelector('[data-ask-input]');
+  const btn = document.querySelector('[data-ask-submit]');
+  if (!input || !btn) return;
+  btn.addEventListener('click', runAskNotes);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      runAskNotes();
+    }
+  });
+}
+
+/* =====================================================
    Backup automatique des journées vers Gist (days.json)
    Fusion au boot : jours distants que le local ne connaît pas sont restaurés.
    Push débounce après toute mutation de fp.days.
@@ -1337,21 +1590,8 @@ async function promoteCapture(id, slot) {
 async function captureToNote(id) {
   const item = findCapture(id);
   if (!item) return;
-  const line = `\n\n[${new Date(item.timestamp || Date.now()).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}] ${item.title || item.raw}`;
-  const ta = document.querySelector('[data-notes-input]');
-  if (ta) {
-    ta.value = (ta.value || '') + line;
-    writeLocalNotes(ta.value);
-    pushNotesToGist(ta.value);
-  } else {
-    // fallback: directement sur Gist
-    const { gistId, githubToken } = getSettings();
-    if (gistId && githubToken) {
-      const current = await fetchNotesFromGist();
-      await pushNotesToGist((current || '') + line);
-    }
-  }
-  showToast('Ajouté aux notes');
+  const body = item.title ? `${item.title}${item.raw && item.raw !== item.title ? `\n« ${item.raw} »` : ''}` : (item.raw || '');
+  await addTimelineEntry(body);
   await removeCapture(id);
 }
 
@@ -1586,6 +1826,8 @@ function boot() {
   bindSettings();
   initInbox();
   initNotes();
+  initTimeline();
+  bindAskNotes();
   initDaysBackup();
   initMemory();
   initCaptures();

@@ -1714,50 +1714,222 @@ select.settings-row-input {
 }
 
 /* =====================================================
-   Notes screen
+   Notes screen — pinned context + timeline
    ===================================================== */
-.notes-hint {
+.notes-block { margin-bottom: 24px; }
+
+.notes-block-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px 10px;
+}
+.notes-block-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.015em;
+}
+.notes-block-hint {
+  font-size: 12px;
   color: var(--text-muted);
-  font-size: 14px;
+  letter-spacing: -0.005em;
   line-height: 1.4;
-  margin: 0 16px 12px;
-  padding: 12px 16px;
-  background: var(--bg-card);
-  border-radius: 12px;
 }
 
 .notes-textarea {
   display: block;
-  width: calc(100% - 32px);
-  margin: 0 16px;
-  min-height: 260px;
-  padding: 16px;
-  background: var(--bg-card);
-  border: 1px solid transparent;
-  border-radius: 12px;
+  width: 100%;
+  min-height: 180px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--radius);
   color: var(--text);
   font-family: inherit;
   font-size: 15px;
   line-height: 1.5;
   resize: vertical;
-  box-sizing: border-box;
+  letter-spacing: -0.005em;
 }
 .notes-textarea:focus {
   outline: none;
-  border-color: var(--accent, #0a84ff);
+  box-shadow: 0 0 0 2px var(--tint-bg);
 }
 .notes-textarea::placeholder {
   color: var(--text-dim);
-  font-style: italic;
 }
 
 .notes-status {
   color: var(--text-dim);
   font-size: 12px;
-  margin: 8px 16px 0;
+  margin-top: 6px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   min-height: 14px;
+}
+
+.btn-timeline-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  color: var(--tint);
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+  transition: background 0.15s var(--ease);
+  letter-spacing: -0.005em;
+}
+.btn-timeline-add:active { background: var(--surface-2); }
+.btn-timeline-add .icon { width: 16px; height: 16px; }
+
+.timeline-compose {
+  margin-top: 10px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.timeline-compose[hidden] { display: none; }
+.timeline-input {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: vertical;
+  letter-spacing: -0.005em;
+}
+.timeline-input:focus { outline: 2px solid var(--tint-bg); outline-offset: 0; }
+.timeline-compose-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.timeline-list {
+  margin-top: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.timeline-empty {
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.45;
+}
+.timeline-entry {
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--separator-soft);
+}
+.timeline-entry:last-child { border-bottom: 0; }
+.timeline-entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.timeline-entry-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.timeline-entry-delete {
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 2px 6px;
+}
+.timeline-entry-delete:active { color: var(--c-urgence); }
+.timeline-entry-body {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  letter-spacing: -0.005em;
+}
+
+/* Ask Claude sur tes notes */
+.ask-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+.ask-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  padding: 6px 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+  resize: none;
+  letter-spacing: -0.005em;
+}
+.ask-input:focus { outline: none; }
+.ask-input::placeholder { color: var(--text-dim); }
+
+.btn-ask {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--tint);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s var(--ease);
+}
+.btn-ask:active { background: var(--tint-hover); transform: scale(0.96); }
+.btn-ask:disabled { background: var(--surface-3); color: var(--text-dim); cursor: not-allowed; }
+.btn-ask .icon { width: 18px; height: 18px; }
+
+.ask-answer {
+  background: var(--tint-bg);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  letter-spacing: -0.005em;
+  white-space: pre-wrap;
+  animation: fadeIn 0.2s var(--ease);
+}
+.ask-answer[hidden] { display: none; }
+.ask-answer-q {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tint);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ask-status {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  min-height: 14px;
+  text-align: right;
 }
 
 @media (prefers-reduced-motion: reduce) {

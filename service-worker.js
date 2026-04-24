@@ -4,7 +4,7 @@
    et l'API Claude/GitHub (réseau frais quand possible).
    ========================================================= */
 
-const VERSION = 'fp-v1.4-lotF';
+const VERSION = 'fp-v1.6-lotG';
 const SHELL_CACHE = `${VERSION}-shell`;
 
 const SHELL_ASSETS = [
