@@ -212,6 +212,35 @@ export async function askNotes(question, { pinned = '', timeline = '', memorySum
 }
 
 /* =====================================================
+   Hook — Parser bloc ad-hoc (Haiku)
+   Transforme un texte libre ("rdv dentiste 14h") en bloc structuré.
+   ===================================================== */
+export async function parseAdHocBlock(userInput) {
+  const { text } = await callClaude({
+    model: MODELS.HAIKU,
+    systemOverride: `Tu transformes la description courte d'un événement personnel en un bloc d'agenda structuré.
+Règles strictes :
+- Réponse JSON UNIQUEMENT, pas de texte autour
+- Format : {"time":"HH:MM","duration":<minutes>,"title":"<titre court>","kind":"meal|work|training|appointment|errand|other"}
+- Si la durée n'est pas précisée, estime selon le type (rdv médecin = 60, café = 30, course rapide = 20, repas = 45)
+- Si l'heure n'est pas précisée, propose une heure ronde plausible (ex: après-midi → 14:00)
+- title : 3-7 mots, capitalize la 1re lettre, pas de ponctuation finale
+- kind : choisis le plus pertinent, "other" si rien ne colle`,
+    userMessage: userInput.trim(),
+    maxTokens: 200,
+    temperature: 0.2,
+  });
+  const parsed = parseJsonStrict(text);
+  return {
+    id: 'adhoc-' + Date.now().toString(36),
+    time: parsed.time,
+    duration: Number(parsed.duration) || 30,
+    title: parsed.title,
+    kind: parsed.kind || 'other',
+  };
+}
+
+/* =====================================================
    Hook 4.5 — Onboarding diagnostic adaptatif (Sonnet, one-shot)
    ===================================================== */
 export async function onboardingDiagnostic(answers) {

@@ -119,6 +119,64 @@ export function replaceAllDays(nextDays) {
 }
 
 /* =====================================================
+   Weekly Planning (master template lun-ven + day.blocks ad-hoc)
+   Le template est statique par défaut ; les ajouts ponctuels
+   (ex: rdv) vont dans day.blocks et n'affectent qu'un seul jour.
+   ===================================================== */
+const DEFAULT_PLANNING = () => ({
+  enabled: true,
+  weekdayTemplate: [
+    { id: 'breakfast',    time: '08:00', duration: 30, title: "Petit déj Pak'nSave",   kind: 'meal' },
+    { id: 'gym',          time: '09:45', duration: 90, title: 'Gym + douche',           kind: 'training' },
+    { id: 'post-workout', time: '11:15', duration: 30, title: 'Repas post-workout',     kind: 'meal' },
+    { id: 'block-1',      time: '12:00', duration: 90, title: 'Bloc 1 — Client',        kind: 'work' },
+    { id: 'lunch',        time: '13:30', duration: 30, title: 'Déjeuner',               kind: 'meal' },
+    { id: 'block-2',      time: '14:00', duration: 90, title: 'Bloc 2 — Projets perso', kind: 'work' },
+    { id: 'block-3',      time: '15:45', duration: 75, title: 'Bloc 3 — Monétisation',  kind: 'work' },
+  ],
+});
+
+export function getWeeklyPlanning() {
+  const p = read('weeklyPlanning', null);
+  if (!p) {
+    const init = DEFAULT_PLANNING();
+    write('weeklyPlanning', init);
+    return init;
+  }
+  return { ...DEFAULT_PLANNING(), ...p };
+}
+
+export function setWeeklyPlanning(plan) {
+  write('weeklyPlanning', plan);
+  return plan;
+}
+
+export function addAdHocBlock(dateISO, block) {
+  const day = getDay(dateISO);
+  const blocks = [...(day.blocks || []), block];
+  updateDay(dateISO, { blocks });
+  return blocks;
+}
+
+export function removeAdHocBlock(dateISO, blockId) {
+  const day = getDay(dateISO);
+  const blocks = (day.blocks || []).filter(b => b.id !== blockId);
+  updateDay(dateISO, { blocks });
+  return blocks;
+}
+
+export function getDayBlocks(dateISO = todayISO()) {
+  const planning = getWeeklyPlanning();
+  const dow = new Date(dateISO + 'T00:00:00').getDay();
+  const isWeekday = dow >= 1 && dow <= 5;
+  const master = (planning.enabled && isWeekday)
+    ? planning.weekdayTemplate.map(b => ({ ...b, source: 'master' }))
+    : [];
+  const adhoc = (getDay(dateISO).blocks || []).map(b => ({ ...b, source: 'adhoc' }));
+  return [...master, ...adhoc].sort((a, b) => a.time.localeCompare(b.time));
+}
+
+/* =====================================================
    Long-term memory (cache local, source de vérité = Gist)
    ===================================================== */
 export function getMemoryCache() {

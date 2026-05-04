@@ -4,7 +4,7 @@
    et l'API Claude/GitHub (réseau frais quand possible).
    ========================================================= */
 
-const VERSION = 'fp-v1.6-lotG';
+const VERSION = 'fp-v1.7-planning';
 const SHELL_CACHE = `${VERSION}-shell`;
 
 const SHELL_ASSETS = [

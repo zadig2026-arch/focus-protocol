@@ -41,6 +41,25 @@
         Dernier scan IA : <span data-scan-when>—</span>
       </div>
 
+      <!-- Planning du jour — blocs récurrents lun-ven + ajouts ad-hoc Claude -->
+      <section class="planning-section" data-planning-section>
+        <header class="planning-header">
+          <h3 class="planning-title">Planning du jour</h3>
+          <span class="planning-meta" data-planning-meta>—</span>
+        </header>
+        <div class="planning-list" data-planning-list></div>
+        <div class="planning-rest" data-planning-rest hidden>
+          <p>Repos — pas de planning aujourd'hui.</p>
+        </div>
+        <div class="planning-add">
+          <input type="text" class="planning-add-input" data-planning-add-input placeholder="Ajouter un imprévu (ex : rdv dentiste 16h)…" />
+          <button class="planning-add-btn" data-planning-add-btn aria-label="Ajouter via Claude">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+        <div class="planning-status" data-planning-status></div>
+      </section>
+
       <article class="card zeigarnik-recall" data-zeigarnik-recall hidden>
         <div class="card-label">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>

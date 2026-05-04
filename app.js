@@ -22,6 +22,9 @@ import {
   getInboxDismissed,
   dismissInboxItem,
   clearInboxDismissed,
+  getDayBlocks,
+  addAdHocBlock,
+  removeAdHocBlock,
 } from './storage.js';
 import {
   hasApiKey,
@@ -31,6 +34,7 @@ import {
   askNotes,
   getDebugPayload,
   invalidateContextCache,
+  parseAdHocBlock,
   ApiError,
 } from './api.js';
 
@@ -1808,6 +1812,155 @@ async function initNotes() {
 }
 
 /* =====================================================
+   Planning du jour — blocs hebdo récurrents + ajouts ad-hoc Claude
+   ===================================================== */
+const PLANNING_KIND_LABELS = {
+  meal: 'repas', work: 'focus', training: 'sport',
+  appointment: 'rdv', errand: 'course', other: '',
+};
+
+function blockState(block, now = new Date()) {
+  const [h, m] = (block.time || '00:00').split(':').map(Number);
+  const start = new Date(now);
+  start.setHours(h, m, 0, 0);
+  const end = new Date(start.getTime() + (Number(block.duration) || 30) * 60000);
+  if (now < start) return 'upcoming';
+  if (now < end) return 'current';
+  return 'past';
+}
+
+function isWeekendDate(date = new Date()) {
+  const d = date.getDay();
+  return d === 0 || d === 6;
+}
+
+function renderPlanning() {
+  const section = document.querySelector('[data-planning-section]');
+  const list = document.querySelector('[data-planning-list]');
+  const rest = document.querySelector('[data-planning-rest]');
+  const meta = document.querySelector('[data-planning-meta]');
+  if (!section || !list) return;
+
+  const blocks = getDayBlocks();
+  const weekend = isWeekendDate();
+  const now = new Date();
+
+  if (meta) {
+    if (weekend && blocks.length === 0) {
+      meta.textContent = 'week-end';
+    } else {
+      const upcoming = blocks.filter(b => blockState(b, now) === 'upcoming').length;
+      const current = blocks.some(b => blockState(b, now) === 'current');
+      if (current) meta.textContent = 'en cours';
+      else if (upcoming === 0) meta.textContent = 'journée terminée';
+      else meta.textContent = `${upcoming} à venir`;
+    }
+  }
+
+  if (weekend && blocks.length === 0) {
+    list.hidden = true;
+    if (rest) rest.hidden = false;
+  } else {
+    list.hidden = false;
+    if (rest) rest.hidden = true;
+
+    list.innerHTML = '';
+    blocks.forEach(b => {
+      const state = blockState(b, now);
+      const kindLabel = PLANNING_KIND_LABELS[b.kind] || '';
+      const item = document.createElement('article');
+      item.className = `planning-item planning-item-${state}` + (b.source === 'adhoc' ? ' planning-item-adhoc' : '');
+      item.dataset.blockId = b.id;
+      item.innerHTML = `
+        <div class="planning-time">
+          ${state === 'current' ? '<span class="planning-dot" aria-label="en cours"></span>' : ''}
+          <span class="planning-time-text"></span>
+        </div>
+        <div class="planning-body">
+          <div class="planning-item-title"></div>
+          ${kindLabel ? `<div class="planning-item-kind"></div>` : ''}
+        </div>
+        ${b.source === 'adhoc' ? '<button class="planning-remove" aria-label="Supprimer">×</button>' : ''}
+      `;
+      item.querySelector('.planning-time-text').textContent = b.time;
+      item.querySelector('.planning-item-title').textContent = b.title || '';
+      const kindEl = item.querySelector('.planning-item-kind');
+      if (kindEl) kindEl.textContent = kindLabel;
+
+      if (b.source === 'adhoc') {
+        item.querySelector('.planning-remove').addEventListener('click', () => {
+          removeAdHocBlock(todayISO(), b.id);
+          renderPlanning();
+          if (navigator.vibrate) navigator.vibrate(8);
+        });
+      }
+      list.appendChild(item);
+    });
+  }
+}
+
+function setPlanningStatus(msg, kind = '') {
+  const el = document.querySelector('[data-planning-status]');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'planning-status' + (kind ? ` planning-status-${kind}` : '');
+}
+
+async function handleAdHocAdd() {
+  const input = document.querySelector('[data-planning-add-input]');
+  const btn = document.querySelector('[data-planning-add-btn]');
+  if (!input || !btn) return;
+  const text = input.value.trim();
+  if (!text) return;
+  if (!hasApiKey()) {
+    setPlanningStatus('Configure ta clé API dans Réglages pour ajouter via Claude.', 'warn');
+    return;
+  }
+  btn.disabled = true;
+  setPlanningStatus('Claude analyse…', 'pending');
+  try {
+    const block = await parseAdHocBlock(text);
+    addAdHocBlock(todayISO(), block);
+    input.value = '';
+    setPlanningStatus(`Ajouté à ${block.time}.`, 'ok');
+    renderPlanning();
+    if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+    setTimeout(() => setPlanningStatus(''), 2500);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      setPlanningStatus(`Erreur : ${e.message}`, 'warn');
+    } else {
+      setPlanningStatus('Impossible de comprendre — reformule.', 'warn');
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function bindPlanning() {
+  document.querySelector('[data-planning-add-btn]')?.addEventListener('click', handleAdHocAdd);
+  document.querySelector('[data-planning-add-input]')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAdHocAdd();
+    }
+  });
+
+  setInterval(() => {
+    if (document.visibilityState === 'visible') renderPlanning();
+  }, 5 * 60 * 1000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') renderPlanning();
+  });
+}
+
+function initPlanning() {
+  renderPlanning();
+  bindPlanning();
+}
+
+/* =====================================================
    Boot
    ===================================================== */
 function boot() {
@@ -1825,6 +1978,7 @@ function boot() {
   renderSettings();
   bindSettings();
   initInbox();
+  initPlanning();
   initNotes();
   initTimeline();
   bindAskNotes();
