@@ -152,13 +152,11 @@ export function build7DContext({ days, settings, memory }) {
     if (!d) return { iso, missing: true };
     const done = (d.priorities || []).filter(p => p.done).length;
     const total = (d.priorities || []).filter(p => p.title?.trim()).length;
-    const switches = (d.taskSwitches || []).length;
     const zNote = d.zeigarnikNote?.text || '';
     const zQuality = d.zeigarnikNote?.quality || null;
     return {
       iso,
       completion: total ? `${done}/${total}` : '0/0',
-      switches,
       zeigarnik: zNote ? `"${zNote.slice(0, 80)}"` : null,
       zQuality,
     };
@@ -181,7 +179,7 @@ export function build7DContext({ days, settings, memory }) {
       lines.push(`- ${r.iso} : aucune donnée`);
       return;
     }
-    const parts = [`complétion ${r.completion}`, `switches ${r.switches}`];
+    const parts = [`complétion ${r.completion}`];
     if (r.zeigarnik) parts.push(`Zeigarnik ${r.zQuality || '?'} : ${r.zeigarnik}`);
     lines.push(`- ${r.iso} : ${parts.join(' · ')}`);
   });

@@ -88,7 +88,6 @@ const DEFAULT_DAY = () => ({
     { type: null, title: '', smallestAction: '', smallestActionApproved: null, done: false, doneAt: null },
     { type: null, title: '', smallestAction: '', smallestActionApproved: null, done: false, doneAt: null },
   ],
-  taskSwitches: [],
   zeigarnikNote: { text: '', quality: null, aiSuggestion: null },
   blocks: [],
   srhiScores: {},
@@ -193,13 +192,6 @@ export function updatePriority(dateISO, index, patch) {
   day.priorities[index] = { ...day.priorities[index], ...patch };
   updateDay(dateISO, { priorities: day.priorities });
   return day.priorities[index];
-}
-
-export function addTaskSwitch(dateISO = todayISO()) {
-  const day = getDay(dateISO);
-  day.taskSwitches.push(Date.now());
-  updateDay(dateISO, { taskSwitches: day.taskSwitches });
-  return day.taskSwitches.length;
 }
 
 export function setZeigarnikNote(dateISO, text) {

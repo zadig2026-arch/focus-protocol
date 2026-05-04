@@ -9,7 +9,6 @@ import {
   updateSettings,
   getDay,
   updatePriority,
-  addTaskSwitch,
   setZeigarnikNote,
   getAllDays,
   replaceAllDays,
@@ -201,25 +200,6 @@ function bindPriorityHandlers() {
 }
 
 /* =====================================================
-   Task switch counter
-   ===================================================== */
-function renderSwitchCounter() {
-  const day = getDay();
-  const el = document.querySelector('[data-switch-count]');
-  if (el) el.textContent = String(day.taskSwitches.length);
-}
-
-function bindSwitchCounter() {
-  const btn = document.querySelector('[data-switch-add]');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    addTaskSwitch();
-    renderSwitchCounter();
-    if (navigator.vibrate) navigator.vibrate(10);
-  });
-}
-
-/* =====================================================
    Zeigarnik recall (shows yesterday's note if exists)
    ===================================================== */
 function renderZeigarnikRecall() {
@@ -290,9 +270,8 @@ function renderHistory() {
     }
     const done = (day.priorities || []).filter(p => p.done).length;
     const total = (day.priorities || []).filter(p => p.title?.trim()).length;
-    const switches = (day.taskSwitches || []).length;
     const zeig = day.zeigarnikNote?.text || '';
-    rows.push({ iso, weekday, done, total, switches, zeig, empty: false });
+    rows.push({ iso, weekday, done, total, zeig, empty: false });
   }
   const hasAny = rows.some(r => !r.empty);
   if (!hasAny) {
@@ -309,7 +288,7 @@ function renderHistory() {
       </div>`;
     }
     const complete = r.total > 0 && r.done === r.total;
-    const stats = `${r.done}/${r.total || 0} tâches · ${r.switches} switch${r.switches > 1 ? 'es' : ''}`;
+    const stats = `${r.done}/${r.total || 0} tâches`;
     return `<div class="history-row">
       <div class="history-row-head">
         <span class="history-row-date">${r.weekday}</span>
@@ -407,9 +386,8 @@ function doMarkdownReport() {
     if (!d) { lines.push(`- **${iso}** · aucune donnée`); return; }
     const done = (d.priorities || []).filter(p => p.done).length;
     const total = (d.priorities || []).filter(p => p.title?.trim()).length;
-    const switches = (d.taskSwitches || []).length;
     const zeig = d.zeigarnikNote?.text || '';
-    lines.push(`- **${iso}** · ${done}/${total} tâches · ${switches} switches${zeig ? ` · Zeigarnik : « ${zeig} »` : ''}`);
+    lines.push(`- **${iso}** · ${done}/${total} tâches${zeig ? ` · Zeigarnik : « ${zeig} »` : ''}`);
   });
 
   const text = lines.join('\n');
@@ -532,9 +510,7 @@ function bindTimer() {
 function updateCloseSummary() {
   const day = getDay();
   const done = day.priorities.filter(p => p.done).length;
-  const switches = day.taskSwitches.length;
   document.querySelector('[data-close-done]').textContent = `${done} / 3`;
-  document.querySelector('[data-close-switches]').textContent = String(switches);
 }
 
 function isWeeklyReviewDay() {
@@ -1971,8 +1947,6 @@ function boot() {
   renderZeigarnikRecall();
   renderPriorities();
   bindPriorityHandlers();
-  renderSwitchCounter();
-  bindSwitchCounter();
   bindTimer();
   bindCloseModal();
   renderSettings();

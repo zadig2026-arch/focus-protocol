@@ -168,13 +168,13 @@ export async function checkSmallestAction(task, smallestAction) {
 export async function weeklyDiagnostic() {
   const { text } = await callClaude({
     model: MODELS.SONNET,
-    userMessage: `Fais une rétro de ma semaine écoulée en t'appuyant strictement sur les 7 jours de données fournis (complétion des 3 tâches, task switches, notes Zeigarnik).
+    userMessage: `Fais une rétro de ma semaine écoulée en t'appuyant strictement sur les 7 jours de données fournis (complétion des 3 tâches, notes Zeigarnik).
 
 Réponds en JSON strict, en français, ton direct tutoyant :
 {
   "wins": "1-2 phrases sur ce qui a bien marché cette semaine, avec une observation spécifique",
   "frictions": "1-2 phrases sur ce qui a bloqué ou créé de la friction, avec une observation spécifique",
-  "patternObservation": "1 pattern notable que tu remarques (ex: moins de switches le matin, tâches impact souvent reportées, zeigarnik plus précise en fin de semaine…)",
+  "patternObservation": "1 pattern notable que tu remarques (ex: tâches impact souvent reportées, zeigarnik plus précise en fin de semaine…)",
   "nextWeekPriority": "1 priorité claire et actionnable pour la semaine à venir, pas une généralité"
 }`,
     maxTokens: 800,
